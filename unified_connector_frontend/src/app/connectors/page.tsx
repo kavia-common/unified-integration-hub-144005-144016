@@ -1,107 +1,82 @@
-"use client";
+'use client';
 
-import React, { useEffect, useMemo, useState } from "react";
-import AppShell from "@/components/layout/AppShell";
-import { getAllConnectorClients } from "@/connectors";
-import { ConnectorApi, ConnectorSummary } from "@/utils/api";
-import ConnectorCard from "@/components/integrations/ConnectorCard";
+import React from 'react';
+import { useSearchParams } from 'next/navigation';
+import ConnectorCard from '@/components/integrations/ConnectorCard';
+import { CONNECTORS } from '@/connectors';
+import { getConnectors } from '@/utils/api';
 
-export default function IntegrationsPage() {
-  const clients = useMemo(() => getAllConnectorClients(), []);
-  const [connectors, setConnectors] = useState<ConnectorSummary[]>([]);
-  const [error, setError] = useState<string | null>(null);
+export default function ConnectorsPage() {
+  const qs = useSearchParams();
+  const [connectedFlags, setConnectedFlags] = React.useState<Record<string, boolean>>({});
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
 
-  useEffect(() => {
-    ConnectorApi.listConnectors()
+  React.useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    getConnectors()
       .then((data) => {
-        if (data?.connectors?.length) {
-          setConnectors(data.connectors);
-        } else {
-          setConnectors(
-            clients.map((c) => ({
-              id: c.meta.id,
-              name: c.meta.name,
-              description: c.meta.description,
-              connected: false,
-              category: c.meta.category,
-              icon: c.meta.icon,
-            }))
-          );
+        if (cancelled) return;
+        // Basic mapping: assume backend returns an array of connectors with id and connected fields if available.
+        const map: Record<string, boolean> = {};
+        if (Array.isArray(data)) {
+          data.forEach((c) => {
+            if (c && typeof c === 'object' && 'id' in c) {
+              const id = String((c as { id: string }).id);
+              const connected = Boolean((c as { connected?: boolean }).connected);
+              map[id] = connected;
+            }
+          });
         }
+        setConnectedFlags(map);
+        setLoading(false);
       })
-      .catch(() => {
-        setConnectors(
-          clients.map((c) => ({
-            id: c.meta.id,
-            name: c.meta.name,
-            description: c.meta.description,
-            connected: false,
-            category: c.meta.category,
-            icon: c.meta.icon,
-          }))
-        );
-        setError("Backend not reachable. Showing local connector catalog. Set NEXT_PUBLIC_BACKEND_URL in environment.");
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        const msg = e instanceof Error ? e.message : 'Failed to load connectors';
+        setError(msg);
+        setLoading(false);
       });
-  }, [clients]);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  const onConnect = async (connectorId: string) => {
-    try {
-      const { auth_url } = await ConnectorApi.getOAuthLoginUrl(
-        connectorId,
-        typeof window !== "undefined" ? window.location.href : undefined,
-        null
-      );
-      if (auth_url) {
-        window.location.href = auth_url;
-      }
-    } catch (e) {
-      const err = e as { message?: string };
-      alert(err?.message ?? "Failed to start OAuth flow");
-    }
-  };
-
-  const onDisconnect = async (connectorId: string) => {
-    try {
-      await ConnectorApi.disconnect(connectorId, null);
-      setConnectors((prev) => prev.map((c) => (c.id === connectorId ? { ...c, connected: false } : c)));
-    } catch (e) {
-      const err = e as { message?: string };
-      alert(err?.message ?? "Failed to disconnect");
-    }
-  };
+  const recentlyConnected = qs.get('connected') === '1';
+  const connectorParam = qs.get('connector');
 
   return (
-    <AppShell
-      title="Integrations"
-      subtitle="Connect your tools to the Unified Integration Hub. Use the buttons below to link or unlink integrations."
-      actionLabel="Add connector"
-      onAction={() => alert("Add connector")}
-    >
-      {error && <div className="alert-warn">{error}</div>}
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Connectors</h1>
+        <p className="text-gray-600">Manage integrations like JIRA and Confluence.</p>
+        {recentlyConnected && connectorParam && (
+          <div className="mt-3 rounded-md bg-green-50 p-3 text-green-700">
+            Successfully connected {connectorParam}.
+          </div>
+        )}
+        {error && <div className="mt-3 rounded-md bg-red-50 p-3 text-red-700">{error}</div>}
+      </div>
 
-      <section>
-        <div className="grid grid-connectors">
-          {connectors.map((c) => {
-            const client = clients.find((cl) => cl.meta.id === c.id);
-            return (
-              <ConnectorCard
-                key={c.id}
-                connector={{
-                  id: String(c.id),
-                  name: c.name,
-                  description: c.description ?? "",
-                  connected: Boolean(c.connected),
-                  category: c.category ?? "Other",
-                  icon: c.icon ?? (client?.meta.icon || "🔗"),
-                  color: client?.meta.color || "#2563EB",
-                }}
-                onConnect={() => onConnect(String(c.id))}
-                onDisconnect={() => onDisconnect(String(c.id))}
-              />
-            );
-          })}
+      {loading ? (
+        <div className="rounded-md border bg-white p-4">Loading connectors...</div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {CONNECTORS.map((c) => (
+            <ConnectorCard
+              key={c.id}
+              connectorId={c.id}
+              title={c.name}
+              description={c.description}
+              connected={connectedFlags[c.id]}
+              onStatusChange={(isConnected) =>
+                setConnectedFlags((prev) => ({ ...prev, [c.id]: isConnected }))
+              }
+            />
+          ))}
         </div>
-      </section>
-    </AppShell>
+      )}
+    </div>
   );
 }

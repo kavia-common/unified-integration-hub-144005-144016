@@ -1,84 +1,125 @@
-"use client";
+/**
+ * Environment card that optionally allows viewing/setting tenant id locally.
+ * If EnvCard already existed elsewhere, this file will serve as the actual component implementation.
+ */
+'use client';
 
-import React from "react";
+import React from 'react';
+import { getTenantId, setTenantId } from '@/utils/api';
 
-export interface ConnectorAction {
-  label: string;
-  variant?: "primary" | "cta" | "outline" | "danger";
-  onClick: () => void;
-}
-
-export interface ConnectorMeta {
+export type ConnectorMeta = {
   name: string;
-  status: "connected" | "disconnected" | "error";
+  status: 'connected' | 'disconnected' | 'error';
   apiMasked?: string;
   lastSynced?: string;
-  actions: ConnectorAction[];
-}
+  actions?: Array<{ label: string; variant: 'primary' | 'outline' | 'danger' | 'cta'; onClick: () => void }>;
+};
 
-export interface EnvCardProps {
-  title: string;
+type EnvCardProps = {
+  title?: string;
   onRefresh?: () => void;
-  connectors: ConnectorMeta[];
-}
+  connectors?: ConnectorMeta[];
+};
 
-// PUBLIC_INTERFACE
-export default function EnvCard({ title, onRefresh, connectors }: EnvCardProps) {
+export default function EnvCard({ title = 'Environment', onRefresh, connectors = [] }: EnvCardProps) {
+  const [tenant, setTenant] = React.useState<string>('');
+
+  React.useEffect(() => {
+    const t = getTenantId();
+    if (t) setTenant(t);
+  }, []);
+
+  const onSave = () => {
+    if (tenant.trim().length > 0) {
+      setTenantId(tenant.trim());
+      alert('Tenant ID saved locally.');
+    } else {
+      alert('Please enter a tenant id value.');
+    }
+  };
+
   return (
-    <section className="env-card">
-      <header className="env-card__header">
-        <h2>{title}</h2>
-        <button type="button" className="btn btn-link" onClick={onRefresh}>
-          Refresh
-        </button>
-      </header>
-
-      <div className="env-card__list">
-        {connectors.map((c, idx) => (
-          <article className="connector-block" key={`${c.name}-${idx}`}>
-            <div className="connector-block__left">
-              <h3>{c.name}</h3>
-              <div className="meta">
-                <span className="status">
-                  <span
-                    className={`dot ${
-                      c.status === "connected" ? "dot--green" : c.status === "error" ? "dot--red" : "dot--gray"
-                    }`}
-                  />
-                  {c.status === "connected" ? "Connected" : c.status === "error" ? "Error" : "Disconnected"}
-                </span>
-                {c.apiMasked ? <span className="api-chip">API: {c.apiMasked}</span> : null}
-                {c.lastSynced ? <span className="last-synced">Last synced {c.lastSynced}</span> : null}
-              </div>
-            </div>
-            <div className="connector-block__actions">
-              {c.actions.map((a, i) => (
-                <button
-                  key={`${a.label}-${i}`}
-                  type="button"
-                  className={`btn ${variantToClass(a.variant)}`}
-                  onClick={a.onClick}
-                >
-                  {a.label}
-                </button>
-              ))}
-            </div>
-          </article>
-        ))}
+    <div className="rounded-lg border bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+          <p className="text-sm text-gray-600 mt-1">
+            Set a Tenant ID for API requests (added to x-tenant-id header).
+          </p>
+        </div>
+        {onRefresh && (
+          <button
+            className="px-3 py-2 bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200"
+            onClick={onRefresh}
+          >
+            Refresh
+          </button>
+        )}
       </div>
-    </section>
-  );
-}
 
-function variantToClass(v?: ConnectorAction["variant"]) {
-  switch (v) {
-    case "cta":
-      return "btn-cta";
-    case "outline":
-      return "btn-outline";
-    case "danger":
-      return "btn-outline-red";
-    default:
-      return "btn-primary";
-  }
+      <div className="mt-3 flex items-center gap-2">
+        <input
+          className="w-full rounded-md border px-3 py-2"
+          placeholder="tenant-123"
+          value={tenant}
+          onChange={(e) => setTenant(e.target.value)}
+        />
+        <button className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700" onClick={onSave}>
+          Save
+        </button>
+      </div>
+
+      {connectors.length > 0 && (
+        <div className="mt-4">
+          <h4 className="text-sm font-medium text-gray-800">Connectors</h4>
+          <ul className="mt-2 space-y-2">
+            {connectors.map((c) => (
+              <li
+                key={c.name}
+                className="flex items-center justify-between rounded border px-3 py-2"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">{c.name}</p>
+                  <p className="text-xs text-gray-500">
+                    {c.apiMasked ? `API: ${c.apiMasked}` : 'No API key'}
+                    {c.lastSynced ? ` • Last synced: ${c.lastSynced}` : ''}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs ${
+                      c.status === 'connected'
+                        ? 'bg-green-100 text-green-700'
+                        : c.status === 'error'
+                        ? 'bg-red-100 text-red-700'
+                        : 'bg-gray-100 text-gray-700'
+                    }`}
+                  >
+                    {c.status}
+                  </span>
+                  {c.actions?.map((a) => (
+                    <button
+                      key={a.label}
+                      onClick={a.onClick}
+                      className={`px-2 py-1 text-xs rounded ${
+                        a.variant === 'primary'
+                          ? 'bg-blue-600 text-white'
+                          : a.variant === 'danger'
+                          ? 'bg-red-600 text-white'
+                          : a.variant === 'cta'
+                          ? 'bg-amber-500 text-white'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}
+                    >
+                      {a.label}
+                    </button>
+                  ))}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
 }

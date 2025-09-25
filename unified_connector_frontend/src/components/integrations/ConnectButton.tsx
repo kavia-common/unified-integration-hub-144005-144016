@@ -1,54 +1,44 @@
-"use client";
+'use client';
 
-import React, { useState } from "react";
+import React from 'react';
+import { buildOAuthLoginUrl, getTenantId } from '@/utils/api';
 
-export interface ConnectButtonProps {
-  connected: boolean;
-  onConnect: () => Promise<void> | void;
-  onDisconnect: () => Promise<void> | void;
-  color?: string;
-}
+type Props = {
+  connectorId: 'jira' | 'confluence';
+  className?: string;
+  label?: string;
+};
 
-export default function ConnectButton({ connected, onConnect, onDisconnect, color = "#2563EB" }: ConnectButtonProps) {
-  const [loading, setLoading] = useState(false);
+export default function ConnectButton({ connectorId, className, label }: Props) {
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
-  const handleClick = async () => {
+  const onClick = React.useCallback(async () => {
+    setError(null);
+    setLoading(true);
     try {
-      setLoading(true);
-      if (connected) {
-        await onDisconnect();
-      } else {
-        await onConnect();
-      }
-    } finally {
+      const tenantId = getTenantId();
+      const url = buildOAuthLoginUrl(connectorId, tenantId);
+      // Navigate to backend OAuth login (server will redirect to provider, then back to our callback)
+      window.location.assign(url);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Failed to start OAuth flow';
+      setError(msg);
       setLoading(false);
     }
-  };
-
-  if (connected) {
-    return (
-      <button
-        type="button"
-        onClick={handleClick}
-        disabled={loading}
-        className="inline-flex items-center rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
-        title="Disconnect"
-      >
-        {loading ? "Disconnecting..." : "Disconnect"}
-      </button>
-    );
-  }
+  }, [connectorId]);
 
   return (
-    <button
-      type="button"
-      onClick={handleClick}
-      disabled={loading}
-      className="inline-flex items-center rounded-md px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
-      style={{ backgroundColor: color }}
-      title="Connect"
-    >
-      {loading ? "Connecting..." : "Connect"}
-    </button>
+    <div className={className}>
+      <button
+        onClick={onClick}
+        disabled={loading}
+        className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+        aria-busy={loading}
+      >
+        {loading ? 'Redirecting...' : (label || 'Connect')}
+      </button>
+      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+    </div>
   );
 }
