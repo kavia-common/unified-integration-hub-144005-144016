@@ -1,4 +1,4 @@
-/**
+ /**
  * API utilities for communicating with the backend.
  * This centralizes base URL resolution and tenant-aware headers.
  */
@@ -53,7 +53,6 @@ export type ApiError = Error & { status?: number; payload?: unknown };
 export async function apiFetch<T = unknown>(path: string, opts: ApiOptions = {}): Promise<T> {
   /**
    * Generic fetch wrapper that attaches tenant-aware headers and JSON handling.
-   * Adds x-tenant-id header from opts.tenantId or localStorage for strict tenant isolation.
    * Throws an error for non-2xx responses.
    */
   const base = getBaseUrl();
@@ -216,16 +215,4 @@ export async function connectWithStoredCredentials(connectorId: string): Promise
     method: 'POST',
     json: true,
   });
-}
-
-// PUBLIC_INTERFACE
-export async function apiGet<T>(path: string, tenantId?: string): Promise<T> {
-  /** Convenience GET wrapper with optional tenantId override. */
-  return apiFetch<T>(path, { method: 'GET', json: true, tenantId: tenantId ?? null });
-}
-
-// PUBLIC_INTERFACE
-export async function apiPost<T, B = unknown>(path: string, body: B, tenantId?: string): Promise<T> {
-  /** Convenience POST wrapper with optional tenantId override. */
-  return apiFetch<T>(path, { method: 'POST', json: true, body, tenantId: tenantId ?? null });
 }
