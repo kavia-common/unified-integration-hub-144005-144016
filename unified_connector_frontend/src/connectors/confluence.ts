@@ -3,5 +3,4 @@
  * File kept for future customizations.
  */
 
-// PUBLIC_INTERFACE
 export const CONFLUENCE_CONNECTOR_ID = 'confluence' as const;

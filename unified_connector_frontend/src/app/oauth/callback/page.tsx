@@ -4,12 +4,7 @@ import React from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { completeOAuthCallback } from '@/utils/api';
 
-// PUBLIC_INTERFACE
-function OAuthCallbackInner() {
-  /**
-   * Finalizes the OAuth flow by calling backend callback with code/state.
-   * On success, redirects user to connectors page with success notice.
-   */
+export default function OAuthCallbackPage() {
   const search = useSearchParams();
   const router = useRouter();
   const [status, setStatus] = React.useState<'idle' | 'working' | 'ok' | 'error'>('idle');
@@ -83,13 +78,5 @@ function OAuthCallbackInner() {
         ) : null}
       </div>
     </div>
-  );
-}
-
-export default function OAuthCallbackPage() {
-  return (
-    <React.Suspense fallback={<div className="min-h-[60vh] flex items-center justify-center"><div className="rounded-md border bg-white p-4">Loading...</div></div>}>
-      <OAuthCallbackInner />
-    </React.Suspense>
   );
 }
