@@ -127,6 +127,38 @@ export const ConnectorApi = {
   async disconnect(connectorId: string, tenantId?: string | null) {
     return apiFetch(`/connectors/${encodeURIComponent(connectorId)}/disconnect`, { method: "POST" }, tenantId ?? undefined);
   },
+  // PUBLIC_INTERFACE
+  async rotateKey(connectorId: string, tenantId?: string | null) {
+    // Not present in backend OpenAPI; attempt a conventional endpoint and fail gracefully.
+    try {
+      return await apiFetch(
+        `/connectors/${encodeURIComponent(connectorId)}/rotate-key`,
+        { method: "POST" },
+        tenantId ?? undefined
+      );
+    } catch (e) {
+      const msg =
+        e && typeof e === "object" && "message" in (e as Record<string, unknown>)
+          ? String((e as Record<string, unknown>).message)
+          : "Rotate key not supported for this connector.";
+      throw new Error(msg);
+    }
+  },
+  // PUBLIC_INTERFACE
+  async getPortalUrl(connectorId: string, tenantId?: string | null): Promise<{ url?: string }> {
+    // No backend spec; try a conventional endpoint for portal link.
+    try {
+      const res = await apiFetch<{ url?: string }>(
+        `/connectors/${encodeURIComponent(connectorId)}/portal`,
+        { method: "GET" },
+        tenantId ?? undefined
+      );
+      return res;
+    } catch {
+      // Fallback: not supported
+      return { url: undefined };
+    }
+  },
 };
 
 export type ConnectorSummary = {

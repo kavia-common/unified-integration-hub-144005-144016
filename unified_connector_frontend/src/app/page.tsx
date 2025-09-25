@@ -6,12 +6,76 @@ import EnvCard, { ConnectorMeta } from "@/components/dashboard/EnvCard";
 import { ChatInput } from "@/components/integrations";
 
 export default function Home() {
-  const makeActions = (status: ConnectorMeta["status"]): ConnectorMeta["actions"] => {
+  const [banner, setBanner] = React.useState<string | null>(null);
+  const [busy, setBusy] = React.useState<null | string>(null);
+
+  const getErrorMessage = (err: unknown, fallback: string): string => {
+    if (err && typeof err === "object" && "message" in (err as Record<string, unknown>)) {
+      const msgVal = (err as { message?: unknown }).message;
+      return typeof msgVal === "string" ? msgVal : fallback;
+    }
+    return fallback;
+  };
+
+  const openPortal = async (connectorId: string) => {
+    try {
+      setBusy(`Opening portal for ${connectorId}...`);
+      // Try to fetch a portal URL for known connectors; if absent, navigate to connectors list as a fallback.
+      const res = await import("@/utils/api").then((m) => m.ConnectorApi.getPortalUrl(connectorId));
+      if (res?.url) {
+        window.open(res.url, "_blank", "noopener,noreferrer");
+        setBanner(`Opened portal for ${connectorId} in a new tab.`);
+      } else {
+        // Fallback: route user to /connectors page with a notice
+        setBanner("Portal not supported by backend. Redirecting to Connections page.");
+        window.location.href = "/connectors";
+      }
+    } catch (e) {
+      const msg = getErrorMessage(e, "Failed to open portal.");
+      alert(msg);
+    } finally {
+      setBusy(null);
+      setTimeout(() => setBanner(null), 3000);
+    }
+  };
+
+  const rotateKey = async (connectorId: string) => {
+    try {
+      setBusy(`Rotating key for ${connectorId}...`);
+      const api = await import("@/utils/api").then((m) => m.ConnectorApi);
+      await api.rotateKey(connectorId);
+      setBanner(`Rotated key for ${connectorId}.`);
+    } catch (e) {
+      const msg = getErrorMessage(e, "Failed to rotate key.");
+      alert(msg);
+    } finally {
+      setBusy(null);
+      setTimeout(() => setBanner(null), 3000);
+    }
+  };
+
+  const disconnect = async (connectorId: string) => {
+    try {
+      setBusy(`Disconnecting ${connectorId}...`);
+      const api = await import("@/utils/api").then((m) => m.ConnectorApi);
+      await api.disconnect(connectorId);
+      setBanner(`Disconnected ${connectorId}.`);
+    } catch (e) {
+      const msg = getErrorMessage(e, "Failed to disconnect.");
+      alert(msg);
+    } finally {
+      setBusy(null);
+      setTimeout(() => setBanner(null), 3000);
+    }
+  };
+
+  const makeActions = (status: ConnectorMeta["status"], connectorName?: string): ConnectorMeta["actions"] => {
     if (status === "connected") {
+      const id = (connectorName || "").toLowerCase();
       return [
-        { label: "Open Portal", variant: "primary", onClick: () => alert("Opening portal...") },
-        { label: "Rotate Key", variant: "outline", onClick: () => alert("Rotating key...") },
-        { label: "Disconnect", variant: "danger", onClick: () => alert("Disconnecting...") },
+        { label: busy ? busy : "Open Portal", variant: "primary", onClick: () => openPortal(id) },
+        { label: busy ? busy : "Rotate Key", variant: "outline", onClick: () => rotateKey(id) },
+        { label: busy ? busy : "Disconnect", variant: "danger", onClick: () => disconnect(id) },
       ];
     }
     if (status === "error") {
@@ -27,14 +91,14 @@ export default function Home() {
   };
 
   const devConnectors: ConnectorMeta[] = [
-    { name: "GitHub", status: "connected", apiMasked: "****-****-gH8", lastSynced: "2h ago", actions: makeActions("connected") },
-    { name: "Slack", status: "connected", apiMasked: "****-****-SkC", lastSynced: "10m ago", actions: makeActions("connected") },
-    { name: "Notion", status: "disconnected", actions: makeActions("disconnected") },
+    { name: "GitHub", status: "connected", apiMasked: "****-****-gH8", lastSynced: "2h ago", actions: makeActions("connected", "GitHub") },
+    { name: "Slack", status: "connected", apiMasked: "****-****-SkC", lastSynced: "10m ago", actions: makeActions("connected", "Slack") },
+    { name: "Notion", status: "disconnected", actions: makeActions("disconnected", "Notion") },
   ];
 
   const prodConnectors: ConnectorMeta[] = [
-    { name: "Jira", status: "connected", apiMasked: "****-****-JrA", lastSynced: "1h ago", actions: makeActions("connected") },
-    { name: "Confluence", status: "error", apiMasked: "****-****-CnF", lastSynced: "1d ago", actions: makeActions("error") },
+    { name: "Jira", status: "connected", apiMasked: "****-****-JrA", lastSynced: "1h ago", actions: makeActions("connected", "Jira") },
+    { name: "Confluence", status: "error", apiMasked: "****-****-CnF", lastSynced: "1d ago", actions: makeActions("error", "Confluence") },
   ];
 
   return (
@@ -44,6 +108,11 @@ export default function Home() {
       actionLabel="Create new connection"
       onAction={() => alert("Create new connection")}
     >
+      {banner ? (
+        <div className="mb-4 rounded-md border border-blue-200 bg-blue-50 p-3 text-blue-800">
+          {banner}
+        </div>
+      ) : null}
       <div className="env-columns">
         <EnvCard title="Current Dev" onRefresh={() => alert("Refreshing Dev")} connectors={devConnectors} />
         <EnvCard title="Current Prod" onRefresh={() => alert("Refreshing Prod")} connectors={prodConnectors} />
