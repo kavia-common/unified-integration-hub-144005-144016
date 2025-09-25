@@ -1,4 +1,4 @@
- /**
+/**
  * Connector registry to centralize connector IDs and labels.
  */
 
@@ -20,3 +20,16 @@ export function getConnectorById(id: string) {
   /** Gets connector definition by id. */
   return CONNECTORS.find(c => c.id === id);
 }
+
+/**
+ * Normalized Create API endpoints used by UI:
+ * - POST /connectors/jira/issues
+ *   Body: { title: string, description?: string, projectKey?: string, issueType?: string }
+ *   Returns: normalized issue object
+ *
+ * - POST /connectors/confluence/pages
+ *   Body: { title: string, spaceKey?: string, parentId?: string, content?: string }
+ *   Returns: normalized page object
+ *
+ * Both require optional 'x-tenant-id' header.
+ */

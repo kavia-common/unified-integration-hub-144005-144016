@@ -1,71 +1,85 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import AppShell from "@/components/layout/AppShell";
-import EnvCard, { ConnectorMeta } from "@/components/dashboard/EnvCard";
 import LiveSearch from "@/components/integrations/LiveSearch";
-import { JIRA_CONNECTOR_ID } from "@/connectors/jira";
-import { CONFLUENCE_CONNECTOR_ID } from "@/connectors/confluence";
+import SearchResults from "@/components/integrations/SearchResults";
+import JiraCreateIssueModal from "@/components/integrations/JiraCreateIssueModal";
+import ConfluenceCreatePageModal from "@/components/integrations/ConfluenceCreatePageModal";
 
-export default function Home() {
-  const makeActions = (status: ConnectorMeta["status"]): ConnectorMeta["actions"] => {
-    if (status === "connected") {
-      return [
-        { label: "Open Portal", variant: "primary", onClick: () => alert("Opening portal...") },
-        { label: "Rotate Key", variant: "outline", onClick: () => alert("Rotating key...") },
-        { label: "Disconnect", variant: "danger", onClick: () => alert("Disconnecting...") },
-      ];
-    }
-    if (status === "error") {
-      return [
-        { label: "Retry", variant: "cta", onClick: () => alert("Retrying...") },
-        { label: "Details", variant: "outline", onClick: () => alert("Showing details...") },
-      ];
-    }
-    return [
-      { label: "Connect", variant: "cta", onClick: () => alert("Connecting...") },
-      { label: "Docs", variant: "outline", onClick: () => alert("Opening docs...") },
-    ];
-  };
+export default function HomePage() {
+  const [tenantId, setTenantId] = useState<string>("demo-tenant");
 
-  const devConnectors: ConnectorMeta[] = [
-    { name: "GitHub", status: "connected", apiMasked: "****-****-gH8", lastSynced: "2h ago", actions: makeActions("connected") },
-    { name: "Slack", status: "connected", apiMasked: "****-****-SkC", lastSynced: "10m ago", actions: makeActions("connected") },
-    { name: "Notion", status: "disconnected", actions: makeActions("disconnected") },
-  ];
-
-  const prodConnectors: ConnectorMeta[] = [
-    { name: "Jira", status: "connected", apiMasked: "****-****-JrA", lastSynced: "1h ago", actions: makeActions("connected") },
-    { name: "Confluence", status: "error", apiMasked: "****-****-CnF", lastSynced: "1d ago", actions: makeActions("error") },
-  ];
+  const [showJiraModal, setShowJiraModal] = useState(false);
+  const [showConfluenceModal, setShowConfluenceModal] = useState(false);
+  type CreatedItem = { id?: string; key?: string; title?: string; url?: string; [k: string]: unknown };
+  const [lastCreated, setLastCreated] = useState<CreatedItem | null>(null);
 
   return (
-    <AppShell
-      title="Connections Dashboard"
-      subtitle="Manage your integrations from a central interface. Monitor status, rotate keys, and open portals for each connection."
-      actionLabel="Create new connection"
-      onAction={() => alert("Create new connection")}
-    >
-      <div className="env-columns">
-        <EnvCard title="Current Dev" onRefresh={() => alert("Refreshing Dev")} connectors={devConnectors} />
-        <EnvCard title="Current Prod" onRefresh={() => alert("Refreshing Prod")} connectors={prodConnectors} />
+    <AppShell>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold text-gray-900">Unified Connector Dashboard</h1>
+        <div className="flex items-center gap-2">
+          <input
+            value={tenantId}
+            onChange={(e) => setTenantId(e.target.value)}
+            className="rounded-md border border-gray-300 px-3 py-1 text-sm"
+            placeholder="Tenant Id"
+            aria-label="Tenant Id"
+          />
+        </div>
       </div>
 
-      <div className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="mt-4 flex gap-3">
+        <button
+          className="rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+          onClick={() => setShowJiraModal(true)}
+        >
+          + JIRA Issue
+        </button>
+        <button
+          className="rounded-md bg-amber-500 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-600"
+          onClick={() => setShowConfluenceModal(true)}
+        >
+          + Confluence Page
+        </button>
+      </div>
+
+      {lastCreated ? (
+        <div className="mt-3 rounded-md bg-green-50 p-3 text-green-700">
+          Created: {lastCreated?.key || lastCreated?.id || lastCreated?.title || "Item"}
+        </div>
+      ) : null}
+
+      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div>
           <h2 className="text-lg font-semibold text-gray-900 mb-2">Search JIRA</h2>
-          <LiveSearch connectorId={JIRA_CONNECTOR_ID} />
+          <LiveSearch connectorId="jira" />
         </div>
         <div>
           <h2 className="text-lg font-semibold text-gray-900 mb-2">Search Confluence</h2>
-          <LiveSearch connectorId={CONFLUENCE_CONNECTOR_ID} />
+          <LiveSearch connectorId="confluence" />
         </div>
       </div>
 
-      <div className="footer-links">
-        <a href="#" className="link">Documentation and Support</a>
-        <a href="#" className="link">Having trouble? Contact us</a>
-      </div>
+
+
+      <JiraCreateIssueModal
+        open={showJiraModal}
+        onClose={() => setShowJiraModal(false)}
+        tenantId={tenantId}
+        onCreated={(issue) => {
+          setLastCreated(issue);
+        }}
+      />
+      <ConfluenceCreatePageModal
+        open={showConfluenceModal}
+        onClose={() => setShowConfluenceModal(false)}
+        tenantId={tenantId}
+        onCreated={(page) => {
+          setLastCreated(page);
+        }}
+      />
     </AppShell>
   );
 }
