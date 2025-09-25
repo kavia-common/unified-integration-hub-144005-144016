@@ -12,6 +12,7 @@ export type ConnectorMeta = {
   status: 'connected' | 'disconnected' | 'error';
   apiMasked?: string;
   lastSynced?: string;
+  errorText?: string | null;
   actions?: Array<{ label: string; variant: 'primary' | 'outline' | 'danger' | 'cta'; onClick: () => void }>;
 };
 
@@ -19,9 +20,11 @@ type EnvCardProps = {
   title?: string;
   onRefresh?: () => void;
   connectors?: ConnectorMeta[];
+  loading?: boolean;
+  error?: string | null;
 };
 
-export default function EnvCard({ title = 'Environment', onRefresh, connectors = [] }: EnvCardProps) {
+export default function EnvCard({ title = 'Environment', onRefresh, connectors = [], loading, error }: EnvCardProps) {
   const [tenant, setTenant] = React.useState<string>('');
 
   React.useEffect(() => {
@@ -69,9 +72,11 @@ export default function EnvCard({ title = 'Environment', onRefresh, connectors =
         </button>
       </div>
 
-      {connectors.length > 0 && (
-        <div className="mt-4">
-          <h4 className="text-sm font-medium text-gray-800">Connectors</h4>
+      <div className="mt-4">
+        <h4 className="text-sm font-medium text-gray-800">Connectors</h4>
+        {loading && <div className="mt-2 rounded border bg-white p-2 text-xs text-gray-600">Loading connector status...</div>}
+        {error && <div className="mt-2 rounded border border-red-200 bg-red-50 p-2 text-xs text-red-700">{error}</div>}
+        {connectors.length > 0 && (
           <ul className="mt-2 space-y-2">
             {connectors.map((c) => (
               <li
@@ -84,6 +89,9 @@ export default function EnvCard({ title = 'Environment', onRefresh, connectors =
                     {c.apiMasked ? `API: ${c.apiMasked}` : 'No API key'}
                     {c.lastSynced ? ` • Last synced: ${c.lastSynced}` : ''}
                   </p>
+                  {c.status === 'error' && c.errorText && (
+                    <p className="text-xs text-red-600 mt-1 line-clamp-2">{c.errorText}</p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <span
@@ -118,8 +126,8 @@ export default function EnvCard({ title = 'Environment', onRefresh, connectors =
               </li>
             ))}
           </ul>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

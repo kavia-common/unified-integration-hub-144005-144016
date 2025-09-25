@@ -7,7 +7,7 @@ import { CONNECTORS } from "@/connectors";
 import LiveSearch from "@/components/integrations/LiveSearch";
 import JiraCreateIssueModal from "@/components/integrations/JiraCreateIssueModal";
 import ConfluenceCreatePageModal from "@/components/integrations/ConfluenceCreatePageModal";
-import { getConnectors } from "@/utils/api";
+import { fetchAllConnectorStatuses } from "@/utils/status";
 
 function ConnectorsPageInner() {
   const qs = useSearchParams();
@@ -20,35 +20,28 @@ function ConnectorsPageInner() {
   type CreatedItem = { id?: string; key?: string; title?: string; url?: string; [k: string]: unknown };
   const [lastCreated, setLastCreated] = useState<CreatedItem | null>(null);
 
-  React.useEffect(() => {
-    let cancelled = false;
+  const loadAll = React.useCallback(async () => {
     setLoading(true);
-    getConnectors()
-      .then((data) => {
-        if (cancelled) return;
-        const map: Record<string, boolean> = {};
-        if (Array.isArray(data)) {
-          data.forEach((c) => {
-            if (c && typeof c === "object" && "id" in c) {
-              const id = String((c as { id: string }).id);
-              const connected = Boolean((c as { connected?: boolean }).connected);
-              map[id] = connected;
-            }
-          });
-        }
-        setConnectedFlags(map);
-        setLoading(false);
-      })
-      .catch((e: unknown) => {
-        if (cancelled) return;
-        const msg = e instanceof Error ? e.message : "Failed to load connectors";
-        setError(msg);
-        setLoading(false);
+    setError(null);
+    try {
+      const ids = CONNECTORS.map((c) => c.id);
+      const map = await fetchAllConnectorStatuses(ids);
+      const flags: Record<string, boolean> = {};
+      ids.forEach((id) => {
+        flags[id] = Boolean(map[id]?.connected);
       });
-    return () => {
-      cancelled = true;
-    };
+      setConnectedFlags(flags);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to load connectors";
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  React.useEffect(() => {
+    void loadAll();
+  }, [loadAll]);
 
   const recentlyConnected = qs.get("connected") === "1";
   const connectorParam = qs.get("connector");
@@ -74,6 +67,13 @@ function ConnectorsPageInner() {
             placeholder="Tenant Id"
             aria-label="Tenant Id"
           />
+          <button
+            onClick={() => void loadAll()}
+            className="rounded-md bg-gray-100 px-3 py-1 text-sm text-gray-800 hover:bg-gray-200"
+            aria-label="Refresh statuses"
+          >
+            Refresh
+          </button>
         </div>
       </div>
 
