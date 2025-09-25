@@ -1,10 +1,10 @@
 "use client";
 
-import { ConnectorApi, ConnectorSummary, ConnectorId } from "@/utils/api";
+import { ConnectorApi, ConnectorSummary } from "@/utils/api";
 
 // Basic connector metadata contract
 export interface ConnectorMeta {
-  id: ConnectorId | string;
+  id: string;
   name: string;
   description: string;
   category: "Atlassian" | "Docs" | "Project Management" | "Knowledge" | "Other";

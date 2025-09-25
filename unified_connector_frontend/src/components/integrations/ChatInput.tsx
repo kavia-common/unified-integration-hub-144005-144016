@@ -20,6 +20,7 @@ type ChipRef = {
 
 export type ChatInputProps = {
   connectors?: Connector[]; // optional injected list; otherwise parse from message prefix
+  placeholder?: string;
   onSend?: (payload: {
     message: string;
     connectorId?: string;
@@ -34,7 +35,7 @@ export type ChatInputProps = {
  * Supports connector selection via typed prefixes (e.g., "jira:", "conf:").
  * Opens LiveSearch overlay with "@" and adds selected items as reference chips.
  */
-export default function ChatInput({ connectors = [], onSend }: ChatInputProps) {
+export default function ChatInput({ connectors = [], onSend, placeholder }: ChatInputProps) {
   const [message, setMessage] = React.useState("");
   const [selectedConnector, setSelectedConnector] = React.useState<Connector | undefined>(undefined);
   const [typedPrefix, setTypedPrefix] = React.useState<string>("");
@@ -121,7 +122,7 @@ export default function ChatInput({ connectors = [], onSend }: ChatInputProps) {
         </div>
         <textarea
           className="w-full resize-y rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
-          placeholder="Use prefixes like jira:, conf: then type your message. Use @ to attach related items."
+          placeholder={ ( ({placeholder}:{placeholder?:string}) => placeholder ?? "Use prefixes like jira:, conf: then type your message. Use @ to attach related items.")({placeholder}) }
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}

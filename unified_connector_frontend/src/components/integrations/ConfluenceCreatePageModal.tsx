@@ -19,7 +19,8 @@ export default function ConfluenceCreatePageModal({
   onClose: () => void;
   onCreated?: (page: Record<string, unknown>) => void;
 }) {
-  const [spaces, setSpaces] = useState<Array<Record<string, unknown>>>([]);
+  type Space = { id?: string | number; key?: string; name?: string };
+  const [spaces, setSpaces] = useState<Space[]>([]);
   const [spaceKey, setSpaceKey] = useState("");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -31,7 +32,13 @@ export default function ConfluenceCreatePageModal({
     (async () => {
       try {
         const res = await listConfluenceSpaces();
-        setSpaces(res?.items || res || []);
+        const items = (res?.items || res || []) as Array<Record<string, unknown>>;
+        const normalized: Space[] = items.map((r) => ({
+          id: (typeof r.id === "string" || typeof r.id === "number") ? r.id : undefined,
+          key: typeof r.key === "string" ? r.key : undefined,
+          name: typeof r.name === "string" ? r.name : undefined,
+        }));
+        setSpaces(normalized);
       } catch (e) {
         console.error(e);
         setSpaces([]);
@@ -80,11 +87,15 @@ export default function ConfluenceCreatePageModal({
             aria-invalid={!spaceKey}
           >
             <option value="">Select space</option>
-            {spaces.map((s) => (
-              <option key={s.key || s.id} value={s.key || s.id}>
-                {s.name} ({s.key})
-              </option>
-            ))}
+            {spaces.map((s) => {
+              const optionVal = (s.key ?? String(s.id ?? "")).toString();
+              const optionKey: React.Key = optionVal;
+              return (
+                <option key={optionKey} value={optionVal}>
+                  {(s.name ?? optionVal)}{s.key ? ` (${s.key})` : ""}
+                </option>
+              );
+            })}
           </select>
         </div>
         <div>
