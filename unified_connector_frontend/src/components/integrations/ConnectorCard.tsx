@@ -1,69 +1,73 @@
-'use client';
+"use client";
 
-import React from 'react';
-import ConnectButton from './ConnectButton';
-import { disconnectConnector } from '@/utils/api';
+import React from "react";
+import ConnectButton from "@/components/integrations/ConnectButton";
 
-type Props = {
-  connectorId: 'jira' | 'confluence';
-  title: string;
-  description?: string;
-  connected?: boolean;
-  onStatusChange?: (connected: boolean) => void;
-};
-
-export default function ConnectorCard({ connectorId, title, description, connected, onStatusChange }: Props) {
-  const [isConnected, setIsConnected] = React.useState<boolean>(!!connected);
-  const [busy, setBusy] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-
-  const handleDisconnect = async () => {
-    setError(null);
-    setBusy(true);
-    try {
-      await disconnectConnector(connectorId);
-      setIsConnected(false);
-      onStatusChange?.(false);
-    } catch (e: unknown) {
-      let msg = 'Failed to disconnect';
-      if (e && typeof e === 'object' && 'message' in e) {
-        msg = String((e as { message?: string }).message) || msg;
-      }
-      setError(msg);
-    } finally {
-      setBusy(false);
-    }
+export interface ConnectorCardProps {
+  connector: {
+    id: string;
+    name: string;
+    description: string;
+    connected: boolean;
+    category: string;
+    icon: string;
+    color: string;
   };
+  onConnect: () => void;
+  onDisconnect: () => void;
+}
 
+export default function ConnectorCard({ connector, onConnect, onDisconnect }: ConnectorCardProps) {
+  const { name, description, connected, icon, color, category } = connector;
   return (
-    <div className="rounded-lg border bg-white p-4 shadow-sm">
-      <div className="flex items-start justify-between">
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
-          {description && <p className="text-sm text-gray-600 mt-1">{description}</p>}
-        </div>
-        <div className="text-sm">
-          <span className={`inline-flex items-center rounded-full px-2 py-1 ${isConnected ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
-            {isConnected ? 'Connected' : 'Disconnected'}
+    <div className="group relative overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-100 transition hover:shadow-md">
+      <div className="absolute inset-x-0 top-0 h-1.5" style={{ backgroundColor: color }} />
+      <div className="p-5">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div
+              className="flex h-10 w-10 items-center justify-center rounded-lg text-xl"
+              style={{ backgroundColor: `${color}1A`, color }}
+              aria-label={`${name} icon`}
+              title={name}
+            >
+              <span>{icon}</span>
+            </div>
+            <div>
+              <h3 className="text-lg font-medium text-[#111827]">{name}</h3>
+              <p className="text-xs text-gray-500">{category}</p>
+            </div>
+          </div>
+          <span
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${
+              connected
+                ? "bg-green-50 text-green-700 ring-1 ring-green-200"
+                : "bg-gray-50 text-gray-600 ring-1 ring-gray-200"
+            }`}
+          >
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${
+                connected ? "bg-green-500" : "bg-gray-400"
+              }`}
+            />
+            {connected ? "Connected" : "Not connected"}
           </span>
         </div>
-      </div>
 
-      <div className="mt-4 flex items-center gap-3">
-        {isConnected ? (
+        <p className="mb-4 line-clamp-3 text-sm text-gray-600">{description}</p>
+
+        <div className="flex items-center justify-between">
+          <ConnectButton connected={connected} onConnect={onConnect} onDisconnect={onDisconnect} color={color} />
           <button
-            onClick={handleDisconnect}
-            disabled={busy}
-            className="px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
+            type="button"
+            className="rounded-md px-3 py-2 text-xs text-gray-500 hover:text-gray-700"
+            aria-label="More options"
+            title="More options"
           >
-            {busy ? 'Disconnecting...' : 'Disconnect'}
+            •••
           </button>
-        ) : (
-          <ConnectButton connectorId={connectorId} />
-        )}
+        </div>
       </div>
-
-      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
     </div>
   );
 }

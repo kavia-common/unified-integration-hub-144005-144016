@@ -1,6 +1,7 @@
-/**
- * Confluence specific helpers, left minimal as backend provides common endpoints.
- * File kept for future customizations.
- */
+"use client";
 
-export const CONFLUENCE_CONNECTOR_ID = 'confluence' as const;
+/**
+ * Confluence-specific client surface can be expanded here in the future.
+ * For now, generic endpoints are used from the registry in index.ts.
+ */
+export {};
