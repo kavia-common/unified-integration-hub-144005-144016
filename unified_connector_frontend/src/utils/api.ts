@@ -53,7 +53,6 @@ export type ApiError = Error & { status?: number; payload?: unknown };
 export async function apiFetch<T = unknown>(path: string, opts: ApiOptions = {}): Promise<T> {
   /**
    * Generic fetch wrapper that attaches tenant-aware headers and JSON handling.
-   * Adds x-tenant-id header from opts.tenantId or localStorage for strict tenant isolation.
    * Throws an error for non-2xx responses.
    */
   const base = getBaseUrl();

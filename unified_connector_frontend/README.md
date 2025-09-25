@@ -1,148 +1,36 @@
-# Unified Connector Frontend (Next.js)
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-Frontend UI for connecting and managing integrations (Jira, Confluence). Provides:
-- Connector dashboard with live connection status
-- OAuth login/callback flow
-- Search interfaces for Jira and Confluence
-- Create modals (Jira issue, Confluence page)
-- Multi-tenant support via x-tenant-id header
+## Getting Started
 
-## Quick Start
+First, run the development server:
 
-Prerequisites:
-- Node.js 18+ and npm (or pnpm/yarn)
-- A running backend (FastAPI) that implements the OpenAPI spec exposed at /openapi.json
-- Backend URL (publicly reachable or reachable from the browser)
-
-Install and run:
 ```bash
-# from unified-integration-hub-144005-144016/unified_connector_frontend
-npm install
-# set env (see .env.example below)
 npm run dev
-# open http://localhost:3000/connectors
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
 ```
 
-Build for production:
-```bash
-npm run build
-npm run start
-```
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-## Environment Variables
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-Create a `.env.local` (or use your deployment platform’s env settings).
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-Recommended variables:
-- NEXT_PUBLIC_BACKEND_URL: Base URL for backend API, e.g. https://your-backend.example.com
+## Learn More
 
-Example `.env.local`:
-```
-NEXT_PUBLIC_BACKEND_URL=https://vscode-internal-11312-beta.beta01.cloud.kavia.ai:3001
-```
+To learn more about Next.js, take a look at the following resources:
 
-Notes:
-- We never hardcode secrets in code. Configure backend credentials in the backend’s environment (server-side).
-- Tenant ID is read from localStorage key x-tenant-id and also overridable per call in code.
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-## Multi-Tenant Behavior
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-- The UI sends x-tenant-id header on API calls if present in localStorage.
-- You can also specify tenant per operation (e.g., Create modals accept tenantId props).
-- On the Connectors page, you can type a tenant id in the input to use for create actions (and you can set localStorage manually if needed):
-  - In browser console: localStorage.setItem('x-tenant-id', 'demo-tenant')
+## Deploy on Vercel
 
-Important: Because OAuth login is performed by redirecting the browser to the backend, we cannot attach headers at navigation time. The backend should persist tenant context using its own state (e.g., via generated OAuth state param that is mapped to the tenant server-side). The callback API call from the frontend includes x-tenant-id via headers. Ensure backend maps OAuth session/tenant accordingly.
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
-## OAuth Flow
-
-- Connect button navigates to: GET /connectors/{connector_id}/oauth/login?redirect_to={our_callback}
-- Provider redirects back to frontend: /oauth/callback?connector_id=...&code=...&state=...
-- Frontend completes via GET /connectors/{connector_id}/oauth/callback?code=...&state=...
-- On success, user is redirected to /connectors with a success banner.
-
-Callback page: src/app/oauth/callback/page.tsx
-Login URL build: src/utils/api.ts buildOAuthLoginUrl
-
-## Connection Status Sync
-
-- On /connectors, we load all connector statuses with fetchAllConnectorStatuses.
-- Each ConnectorCard also loads its specific status and shows:
-  - Status pill (Connected / Disconnected / Checking…)
-  - Optional metadata and last refresh time if provided by backend
-  - Error states inline
-- Disconnect uses DELETE /connectors/{id}/connection (if available) with fallback to POST /connectors/{id}/disconnect per backend spec.
-- After connect (OAuth success) and disconnect, the UI refreshes status.
-
-## Search and Create
-
-- LiveSearch calls GET /connectors/{id}/search?q=... and normalizes results for a consistent UI.
-- Create modals:
-  - Jira: POST /connectors/jira/issues with normalized body { title, description?, projectKey?, issueType? }
-  - Confluence: POST /connectors/confluence/pages with normalized body { title, spaceKey?, parentId?, content? }
-- Success and error feedback is shown in the modal; after success the modal auto-closes.
-
-## Production Readiness Checklist
-
-- Configure NEXT_PUBLIC_BACKEND_URL to point to your backend.
-- Ensure backend handles:
-  - x-tenant-id header
-  - OAuth login and callback endpoints
-  - Connect/Disconnect endpoints
-  - Search endpoints for jira/confluence
-  - Create endpoints used by the UI (as above)
-- Confirm CORS and cookies (if any) are allowed from frontend origin.
-- Validate that OAuth redirect URL configured at the provider includes:
-  - https://<frontend-domain>/oauth/callback
-- Confirm tenant isolation: Using different tenant ids yields separate stored credentials and search results.
-
-## Developer Onboarding
-
-Key files:
-- src/utils/api.ts: API wrapper (tenant handling, JSON, OAuth helpers).
-- src/utils/status.ts: Status fetchers (per-connector and bulk).
-- src/connectors/index.ts: Registry and docs for normalized endpoints.
-- src/components/integrations/*: UI components (connector card, connect button, search, modals).
-- src/app/connectors/page.tsx: Dashboard page.
-- src/app/oauth/callback/page.tsx: OAuth callback page.
-
-Run local with a live backend:
-1) Start backend (see backend README).
-2) Set NEXT_PUBLIC_BACKEND_URL in frontend.
-3) Open /connectors and perform flows end-to-end.
-
-## Basic Manual QA Guide
-
-1) Connect Flow:
-- Click Connect on Jira / Confluence
-- Complete provider auth
-- On callback, confirm success and redirect to /connectors with banner
-- Status pill should show Connected
-
-2) Disconnect Flow:
-- Click Disconnect on a connected connector
-- Confirm status switches to Disconnected; Refresh status works
-
-3) OAuth Roundtrip:
-- Ensure code/state query params arrive
-- Callback completes and persists connection server-side
-
-4) Search:
-- Type a query (>=2 chars)
-- Observe loading, results or errors; results normalized with title/link/status/type
-
-5) Create:
-- Jira Issue: title required; show validation if missing; on success show confirmation
-- Confluence Page: title required; same behavior
-
-6) Multi-tenant:
-- Change tenant id (localStorage or UI input for create)
-- Validate connections, search and create are isolated per tenant
-
-7) Error and Loading:
-- Disconnect while not connected shows friendly error
-- Backend errors display clear messages; loading indicators appear appropriately
-
-## License
-
-Internal / project license.
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
