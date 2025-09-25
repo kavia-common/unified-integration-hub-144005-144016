@@ -7,19 +7,11 @@ import { CONNECTORS } from "@/connectors";
 import LiveSearch from "@/components/integrations/LiveSearch";
 import JiraCreateIssueModal from "@/components/integrations/JiraCreateIssueModal";
 import ConfluenceCreatePageModal from "@/components/integrations/ConfluenceCreatePageModal";
-import { fetchAllConnectorStatuses } from "@/utils/status";
-import { setTenantId as setTenantIdLocal, getTenantId } from "@/utils/api";
+import { getConnectors } from "@/utils/api";
 
 function ConnectorsPageInner() {
   const qs = useSearchParams();
-  const [tenantId, setTenantId] = useState<string>(() => {
-    if (typeof window === "undefined") return "demo-tenant";
-    try {
-      return getTenantId() || "demo-tenant";
-    } catch {
-      return "demo-tenant";
-    }
-  });
+  const [tenantId, setTenantId] = useState<string>("demo-tenant");
   const [connectedFlags, setConnectedFlags] = React.useState<Record<string, boolean>>({});
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -28,34 +20,35 @@ function ConnectorsPageInner() {
   type CreatedItem = { id?: string; key?: string; title?: string; url?: string; [k: string]: unknown };
   const [lastCreated, setLastCreated] = useState<CreatedItem | null>(null);
 
-  const loadAll = React.useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const ids = CONNECTORS.map((c) => c.id);
-      const map = await fetchAllConnectorStatuses(ids);
-      const flags: Record<string, boolean> = {};
-      ids.forEach((id) => {
-        flags[id] = Boolean(map[id]?.connected);
-      });
-      setConnectedFlags(flags);
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Failed to load connectors";
-      setError(msg);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   React.useEffect(() => {
-    // Persist to localStorage so subsequent API calls use correct tenant header automatically
-    try {
-      setTenantIdLocal(tenantId);
-    } catch {
-      // ignore
-    }
-    void loadAll();
-  }, [loadAll, tenantId]);
+    let cancelled = false;
+    setLoading(true);
+    getConnectors()
+      .then((data) => {
+        if (cancelled) return;
+        const map: Record<string, boolean> = {};
+        if (Array.isArray(data)) {
+          data.forEach((c) => {
+            if (c && typeof c === "object" && "id" in c) {
+              const id = String((c as { id: string }).id);
+              const connected = Boolean((c as { connected?: boolean }).connected);
+              map[id] = connected;
+            }
+          });
+        }
+        setConnectedFlags(map);
+        setLoading(false);
+      })
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        const msg = e instanceof Error ? e.message : "Failed to load connectors";
+        setError(msg);
+        setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const recentlyConnected = qs.get("connected") === "1";
   const connectorParam = qs.get("connector");
@@ -76,27 +69,11 @@ function ConnectorsPageInner() {
         <div className="flex items-center gap-2">
           <input
             value={tenantId}
-            onChange={(e) => {
-              const v = e.target.value;
-              setTenantId(v);
-              try {
-                setTenantIdLocal(v);
-              } catch {
-                // ignore storage errors
-              }
-            }}
+            onChange={(e) => setTenantId(e.target.value)}
             className="rounded-md border border-gray-300 px-3 py-1 text-sm"
             placeholder="Tenant Id"
             aria-label="Tenant Id"
           />
-          <button
-            onClick={() => void loadAll()}
-            className="rounded-md bg-gray-100 px-3 py-1 text-sm text-gray-800 hover:bg-gray-200"
-            aria-label="Refresh statuses"
-            title="Reload connector statuses for current tenant"
-          >
-            Refresh
-          </button>
         </div>
       </div>
 
