@@ -4,9 +4,6 @@ import React from 'react';
 import { useSearchParams } from 'next/navigation';
 import ConnectorCard from '@/components/integrations/ConnectorCard';
 import { CONNECTORS } from '@/connectors';
-import LiveSearch from '@/components/integrations/LiveSearch';
-import { JIRA_CONNECTOR_ID } from '@/connectors/jira';
-import { CONFLUENCE_CONNECTOR_ID } from '@/connectors/confluence';
 import { getConnectors } from '@/utils/api';
 
 // PUBLIC_INTERFACE
@@ -70,33 +67,20 @@ function ConnectorsPageInner() {
       {loading ? (
         <div className="rounded-md border bg-white p-4">Loading connectors...</div>
       ) : (
-        <>
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {CONNECTORS.map((c) => (
-              <ConnectorCard
-                key={c.id}
-                connectorId={c.id}
-                title={c.name}
-                description={c.description}
-                connected={connectedFlags[c.id]}
-                onStatusChange={(isConnected) =>
-                  setConnectedFlags((prev) => ({ ...prev, [c.id]: isConnected }))
-                }
-              />
-            ))}
-          </div>
-
-          <div className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-2">Search JIRA</h2>
-              <LiveSearch connectorId={JIRA_CONNECTOR_ID} />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-2">Search Confluence</h2>
-              <LiveSearch connectorId={CONFLUENCE_CONNECTOR_ID} />
-            </div>
-          </div>
-        </>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {CONNECTORS.map((c) => (
+            <ConnectorCard
+              key={c.id}
+              connectorId={c.id}
+              title={c.name}
+              description={c.description}
+              connected={connectedFlags[c.id]}
+              onStatusChange={(isConnected) =>
+                setConnectedFlags((prev) => ({ ...prev, [c.id]: isConnected }))
+              }
+            />
+          ))}
+        </div>
       )}
     </div>
   );

@@ -3,9 +3,6 @@
 import React from "react";
 import AppShell from "@/components/layout/AppShell";
 import EnvCard, { ConnectorMeta } from "@/components/dashboard/EnvCard";
-import LiveSearch from "@/components/integrations/LiveSearch";
-import { JIRA_CONNECTOR_ID } from "@/connectors/jira";
-import { CONFLUENCE_CONNECTOR_ID } from "@/connectors/confluence";
 
 export default function Home() {
   const makeActions = (status: ConnectorMeta["status"]): ConnectorMeta["actions"] => {
@@ -49,17 +46,6 @@ export default function Home() {
       <div className="env-columns">
         <EnvCard title="Current Dev" onRefresh={() => alert("Refreshing Dev")} connectors={devConnectors} />
         <EnvCard title="Current Prod" onRefresh={() => alert("Refreshing Prod")} connectors={prodConnectors} />
-      </div>
-
-      <div className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">Search JIRA</h2>
-          <LiveSearch connectorId={JIRA_CONNECTOR_ID} />
-        </div>
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">Search Confluence</h2>
-          <LiveSearch connectorId={CONFLUENCE_CONNECTOR_ID} />
-        </div>
       </div>
 
       <div className="footer-links">
