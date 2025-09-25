@@ -56,16 +56,13 @@ export default function ConnectorCard({ connector, onConnect, onDisconnect }: Co
 
         <p className="mb-4 line-clamp-3 text-sm text-gray-600">{description}</p>
 
-        <div className="flex items-center justify-between">
-          <ConnectButton connected={connected} onConnect={onConnect} onDisconnect={onDisconnect} color={color} />
-          <button
-            type="button"
-            className="rounded-md px-3 py-2 text-xs text-gray-500 hover:text-gray-700"
-            aria-label="More options"
-            title="More options"
-          >
-            •••
-          </button>
+        <div className="flex items-center">
+          <ConnectButton
+            connected={connected}
+            onConnect={onConnect}
+            onDisconnect={onDisconnect}
+            color={color}
+          />
         </div>
       </div>
     </div>
