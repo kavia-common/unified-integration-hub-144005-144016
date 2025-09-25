@@ -8,10 +8,18 @@ import LiveSearch from "@/components/integrations/LiveSearch";
 import JiraCreateIssueModal from "@/components/integrations/JiraCreateIssueModal";
 import ConfluenceCreatePageModal from "@/components/integrations/ConfluenceCreatePageModal";
 import { fetchAllConnectorStatuses } from "@/utils/status";
+import { setTenantId as setTenantIdLocal, getTenantId } from "@/utils/api";
 
 function ConnectorsPageInner() {
   const qs = useSearchParams();
-  const [tenantId, setTenantId] = useState<string>("demo-tenant");
+  const [tenantId, setTenantId] = useState<string>(() => {
+    if (typeof window === "undefined") return "demo-tenant";
+    try {
+      return getTenantId() || "demo-tenant";
+    } catch {
+      return "demo-tenant";
+    }
+  });
   const [connectedFlags, setConnectedFlags] = React.useState<Record<string, boolean>>({});
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -40,8 +48,14 @@ function ConnectorsPageInner() {
   }, []);
 
   React.useEffect(() => {
+    // Persist to localStorage so subsequent API calls use correct tenant header automatically
+    try {
+      setTenantIdLocal(tenantId);
+    } catch {
+      // ignore
+    }
     void loadAll();
-  }, [loadAll]);
+  }, [loadAll, tenantId]);
 
   const recentlyConnected = qs.get("connected") === "1";
   const connectorParam = qs.get("connector");
@@ -62,7 +76,15 @@ function ConnectorsPageInner() {
         <div className="flex items-center gap-2">
           <input
             value={tenantId}
-            onChange={(e) => setTenantId(e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value;
+              setTenantId(v);
+              try {
+                setTenantIdLocal(v);
+              } catch {
+                // ignore storage errors
+              }
+            }}
             className="rounded-md border border-gray-300 px-3 py-1 text-sm"
             placeholder="Tenant Id"
             aria-label="Tenant Id"
@@ -71,6 +93,7 @@ function ConnectorsPageInner() {
             onClick={() => void loadAll()}
             className="rounded-md bg-gray-100 px-3 py-1 text-sm text-gray-800 hover:bg-gray-200"
             aria-label="Refresh statuses"
+            title="Reload connector statuses for current tenant"
           >
             Refresh
           </button>
