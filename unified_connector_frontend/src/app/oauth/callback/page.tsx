@@ -1,10 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { completeOAuthCallback } from '@/utils/api';
 
-export default function OAuthCallbackPage() {
+function OAuthCallbackInner() {
   const search = useSearchParams();
   const router = useRouter();
   const [status, setStatus] = React.useState<'idle' | 'working' | 'ok' | 'error'>('idle');
@@ -33,7 +33,8 @@ export default function OAuthCallbackPage() {
       .then((res) => {
         if (cancelled) return;
         setStatus('ok');
-        setDetails(res);
+        const obj = res && typeof res === 'object' ? (res as Record<string, unknown>) : null;
+        setDetails(obj);
         setMessage('Connected successfully. Redirecting...');
         // Redirect back to connectors dashboard after a short delay
         setTimeout(() => {
@@ -78,5 +79,22 @@ export default function OAuthCallbackPage() {
         ) : null}
       </div>
     </div>
+  );
+}
+
+export default function OAuthCallbackPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-[60vh] flex items-center justify-center">
+          <div className="max-w-md w-full rounded-lg border bg-white p-6 shadow">
+            <h1 className="text-xl font-semibold text-gray-900">OAuth Callback</h1>
+            <p className="mt-2 text-gray-700">Preparing...</p>
+          </div>
+        </div>
+      }
+    >
+      <OAuthCallbackInner />
+    </Suspense>
   );
 }

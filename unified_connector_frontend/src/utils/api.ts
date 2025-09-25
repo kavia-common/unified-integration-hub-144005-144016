@@ -24,7 +24,7 @@ const getBackendBaseUrl = (): string => {
     // Provide a safe default for dev; can be overridden by env.
     return "http://localhost:3001";
   }
-  return url.replace(/\/+$/, "");
+  return url.replace(/\/*$/, "");
 };
 
 // PUBLIC_INTERFACE
@@ -41,14 +41,14 @@ export function buildUrl(path: string, searchParams?: ApiOptions["searchParams"]
   return url.toString();
 }
 
-// PUBLIC_INTERFACE
+/**
+ * PUBLIC_INTERFACE
+ * Generic API fetch wrapper.
+ * - Adds JSON headers
+ * - Adds optional tenant header
+ * - Serializes body for non-GET methods
+ */
 export async function apiFetch<T = unknown>(path: string, options: ApiOptions = {}): Promise<T> {
-  /**
-   * Generic API fetch wrapper.
-   * - Adds JSON headers
-   * - Adds optional tenant header
-   * - Serializes body for non-GET methods
-   */
   const { method = "GET", headers = {}, body, tenantId, searchParams } = options;
 
   const url = buildUrl(path, searchParams);
@@ -95,11 +95,44 @@ export async function apiFetch<T = unknown>(path: string, options: ApiOptions = 
   }
 }
 
-// PUBLIC_INTERFACE
+/**
+ * PUBLIC_INTERFACE
+ * Helper: simple GET
+ */
+export async function apiGet<T = unknown>(
+  path: string,
+  tenantId?: string | null,
+  searchParams?: ApiOptions["searchParams"]
+) {
+  return apiFetch<T>(path, { method: "GET", tenantId: tenantId ?? null, searchParams });
+}
+
+/**
+ * PUBLIC_INTERFACE
+ * Helper: simple POST with JSON body
+ */
+export async function apiPost<T = unknown, B = unknown>(
+  path: string,
+  body?: B,
+  tenantId?: string | null,
+  searchParams?: ApiOptions["searchParams"]
+) {
+  return apiFetch<T>(path, { method: "POST", body, tenantId: tenantId ?? null, searchParams });
+}
+
+/**
+ * PUBLIC_INTERFACE
+ * Backend-specific endpoints grouped under ConnectorApi.
+ */
 export const ConnectorApi = {
-  /** List available connectors */
+  /** List available connectors (backend may return array or { connectors: [] }) */
   async listConnectors(tenantId?: string | null) {
-    return apiFetch<{ connectors: ConnectorSummary[] }>("/connectors", { tenantId: tenantId ?? null });
+    const data = await apiFetch<ConnectorSummary[] | { connectors: ConnectorSummary[] }>("/connectors", {
+      tenantId: tenantId ?? null,
+    });
+    if (Array.isArray(data)) return { connectors: data };
+    if (data && typeof data === "object" && "connectors" in data) return data as { connectors: ConnectorSummary[] };
+    return { connectors: [] };
   },
 
   /** Request OAuth login URL for a connector */
@@ -120,6 +153,47 @@ export const ConnectorApi = {
     return apiFetch(`/connectors/${connectorId}/disconnect`, { method: "POST", tenantId: tenantId ?? null });
   },
 };
+
+/**
+ * PUBLIC_INTERFACE
+ * Complete OAuth callback using backend endpoint /connectors/{connector_id}/oauth/callback
+ */
+export async function completeOAuthCallback(
+  connectorId: string,
+  code: string,
+  state?: string | null,
+  tenantId?: string | null
+) {
+  return apiGet<unknown>(`/connectors/${encodeURIComponent(connectorId)}/oauth/callback`, tenantId ?? null, {
+    code,
+    state: state ?? undefined,
+  });
+}
+
+/**
+ * PUBLIC_INTERFACE
+ * Perform search on a connector via /connectors/{id}/search with pagination/filtering options.
+ */
+export async function searchConnector(
+  connectorId: string,
+  q: string,
+  options?: {
+    resource_type?: string | null;
+    page?: number;
+    per_page?: number;
+    filters?: Record<string, unknown>;
+    tenantId?: string | null;
+  }
+) {
+  const { resource_type, page, per_page, filters, tenantId } = options ?? {};
+  return apiGet<unknown>(`/connectors/${encodeURIComponent(connectorId)}/search`, tenantId ?? null, {
+    q,
+    resource_type: resource_type ?? undefined,
+    page,
+    per_page,
+    filters: filters ? JSON.stringify(filters) : undefined,
+  });
+}
 
 export type ConnectorId = "jira" | "confluence";
 
