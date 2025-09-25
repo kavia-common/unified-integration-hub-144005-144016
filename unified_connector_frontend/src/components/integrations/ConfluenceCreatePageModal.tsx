@@ -1,158 +1,117 @@
 "use client";
 
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
+import { createConfluencePage, listConfluenceSpaces } from "@/connectors/confluence";
 import CreateModal from "./CreateModal";
-import { apiPost } from "@/utils/api";
-
-export type NormalizedConfluencePage = {
-  id?: string;
-  title?: string;
-  url?: string;
-  [k: string]: unknown;
-};
-
-export type ConfluenceCreatePageModalProps = {
-  tenantId?: string;
-  open: boolean;
-  onClose: () => void;
-  onCreated?: (page: NormalizedConfluencePage) => void;
-};
 
 /**
  * PUBLIC_INTERFACE
- * ConfluenceCreatePageModal renders a modal to create a Confluence page via backend.
- * Normalized request body:
- *   { title: string, spaceKey?: string, parentId?: string, content?: string }
- * Response expected as normalized page object from backend.
+ * ConfluenceCreatePageModal
+ * Modal for creating a Confluence page per backend OpenAPI:
+ * Request payload: { space_key: string, title: string, body: string }
  */
 export default function ConfluenceCreatePageModal({
-  tenantId,
   open,
   onClose,
   onCreated,
-}: ConfluenceCreatePageModalProps) {
-  const [title, setTitle] = useState("");
+}: {
+  open: boolean;
+  onClose: () => void;
+  onCreated?: (page: Record<string, unknown>) => void;
+}) {
+  const [spaces, setSpaces] = useState<Array<Record<string, unknown>>>([]);
   const [spaceKey, setSpaceKey] = useState("");
-  const [parentId, setParentId] = useState("");
-  const [content, setContent] = useState("");
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
 
-  const canSubmit = useMemo(() => title.trim().length > 0, [title]);
+  useEffect(() => {
+    if (!open) return;
+    (async () => {
+      try {
+        const res = await listConfluenceSpaces();
+        setSpaces(res?.items || res || []);
+      } catch (e) {
+        console.error(e);
+        setSpaces([]);
+      }
+    })();
+  }, [open]);
 
-  const reset = useCallback(() => {
-    setTitle("");
-    setSpaceKey("");
-    setParentId("");
-    setContent("");
-    setError(null);
-    setStatus("idle");
-  }, []);
-
-  const doSubmit = useCallback(async () => {
-    setError(null);
-    if (!canSubmit) {
-      setError("Title is required.");
-      setStatus("error");
-      return;
-    }
-    setStatus("submitting");
-    try {
-      const body = {
-        title: title.trim(),
-        spaceKey: spaceKey.trim() || undefined,
-        parentId: parentId.trim() || undefined,
-        content: content.trim() || undefined,
-      };
-      const result = await apiPost<NormalizedConfluencePage, typeof body>(
-        "/connectors/confluence/pages",
-        body,
-        tenantId
-      );
-      setStatus("success");
-      onCreated?.(result);
-      setTimeout(() => {
-        onClose();
-        reset();
-      }, 800);
-    } catch (e: unknown) {
-      setStatus("error");
-      const message =
-        e instanceof Error
-          ? e.message
-          : typeof e === "object" && e && "message" in e
-          ? String((e as Record<string, unknown>).message)
-          : "Failed to create page.";
-      setError(message);
-    }
-  }, [canSubmit, content, onClose, onCreated, parentId, reset, spaceKey, tenantId, title]);
-
-  const handleClose = useCallback(() => {
-    onClose();
-    setTimeout(reset, 50);
-  }, [onClose, reset]);
+  const canSubmit = Boolean(spaceKey && title && body);
 
   return (
     <CreateModal
       title="Create Confluence Page"
       open={open}
-      onClose={handleClose}
-      onSubmit={doSubmit}
-      submitLabel="Create Page"
+      onClose={onClose}
+      onSubmit={async () => {
+        if (!canSubmit || submitting) return;
+        setSubmitting(true);
+        setError(null);
+        try {
+          const payload = { space_key: spaceKey, title, body };
+          const res = await createConfluencePage(payload);
+          onCreated?.(res);
+          onClose();
+        } catch (e: unknown) {
+          const msg =
+            e && typeof e === "object" && "message" in (e as Record<string, unknown>)
+              ? String((e as { message?: string }).message)
+              : "Failed to create page";
+          setError(msg);
+        } finally {
+          setSubmitting(false);
+        }
+      }}
+      submitLabel={submitting ? "Creating…" : "Create"}
+      status={submitting ? "submitting" : "idle"}
       error={error}
-      status={status}
     >
-      <form
-        className="flex flex-col gap-3"
-        onSubmit={(e) => {
-          e.preventDefault();
-          doSubmit();
-        }}
-      >
+      <div className="space-y-3">
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Title *</label>
-          <input
-            type="text"
-            placeholder="Page title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
-            required
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Space Key</label>
-          <input
-            type="text"
-            placeholder="e.g., ENG"
+          <label className="mb-1 block text-xs text-gray-700">Space key *</label>
+          <select
+            className="w-full rounded-md border border-gray-200 px-2 py-1 text-sm focus:border-blue-400 focus:outline-none"
             value={spaceKey}
             onChange={(e) => setSpaceKey(e.target.value)}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
-          />
+            aria-required="true"
+            aria-invalid={!spaceKey}
+          >
+            <option value="">Select space</option>
+            {spaces.map((s) => (
+              <option key={s.key || s.id} value={s.key || s.id}>
+                {s.name} ({s.key})
+              </option>
+            ))}
+          </select>
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Parent Page ID</label>
+          <label className="mb-1 block text-xs text-gray-700">Title *</label>
           <input
-            type="text"
-            placeholder="Optional parent id"
-            value={parentId}
-            onChange={(e) => setParentId(e.target.value)}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Page title"
+            aria-required="true"
+            aria-invalid={!title}
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Content</label>
+          <label className="mb-1 block text-xs text-gray-700">Body *</label>
           <textarea
-            placeholder="Write content (plain text or simple markup)..."
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            className="min-h-[120px] w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+            rows={6}
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            placeholder="Page body (storage format)"
+            aria-required="true"
+            aria-invalid={!body}
           />
         </div>
-        {!canSubmit && (
-          <p className="text-xs text-red-600">Title is required to create a page.</p>
-        )}
-      </form>
+        {!canSubmit && <p className="text-xs text-red-600">Space key, title, and body are required.</p>}
+      </div>
     </CreateModal>
   );
 }

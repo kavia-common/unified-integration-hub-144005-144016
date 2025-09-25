@@ -56,10 +56,14 @@ export default function Home() {
         </p>
         <div className="max-w-2xl">
           <ChatInput
-            connectorId="confluence"
             placeholder="Ask a question... Use @ to attach pages or issues"
             onSend={(msg) => {
-              alert(`Message sent:\n${msg.text}\nRefs: ${msg.references.map((r) => r.title).join(", ")}`);
+              const refs = (msg.references || []).map((r) => r.label).join(", ");
+              alert(
+                `Message sent:\n${msg.message}\nConnector: ${msg.connectorId ?? "auto"}\nPrefix: ${
+                  msg.parsedPrefix ?? "-"
+                }\nRefs: ${refs}`
+              );
             }}
           />
         </div>

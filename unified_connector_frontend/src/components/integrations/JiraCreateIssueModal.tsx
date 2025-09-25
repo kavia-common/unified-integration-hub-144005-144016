@@ -1,157 +1,139 @@
 "use client";
 
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
+import { createJiraIssue, listJiraProjects } from "@/connectors/jira";
 import CreateModal from "./CreateModal";
-import { apiPost } from "@/utils/api";
-
-export type NormalizedJiraIssue = {
-  id?: string;
-  key?: string;
-  title?: string;
-  url?: string;
-  [k: string]: unknown;
-};
-
-export type JiraCreateIssueModalProps = {
-  tenantId?: string;
-  open: boolean;
-  onClose: () => void;
-  onCreated?: (issue: NormalizedJiraIssue) => void;
-};
 
 /**
  * PUBLIC_INTERFACE
- * JiraCreateIssueModal renders a modal to create a Jira issue via backend.
- * Normalized request body:
- *   { title: string, description?: string, projectKey?: string, issueType?: string }
- * Response expected as normalized issue object from backend.
+ * JiraCreateIssueModal
+ * Modal for creating a Jira issue per backend OpenAPI:
+ * Request payload: { project_key: string, summary: string, issuetype?: string, description?: string | null }
  */
 export default function JiraCreateIssueModal({
-  tenantId,
   open,
   onClose,
   onCreated,
-}: JiraCreateIssueModalProps) {
-  const [title, setTitle] = useState("");
+}: {
+  open: boolean;
+  onClose: () => void;
+  onCreated?: (issue: Record<string, unknown>) => void;
+}) {
+  const [projects, setProjects] = useState<Array<Record<string, unknown>>>([]);
   const [projectKey, setProjectKey] = useState("");
-  const [issueType, setIssueType] = useState("Task");
+  const [summary, setSummary] = useState("");
+  const [issuetype, setIssuetype] = useState("Task");
   const [description, setDescription] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
 
-  const canSubmit = useMemo(() => title.trim().length > 0, [title]);
+  useEffect(() => {
+    if (!open) return;
+    (async () => {
+      try {
+        const res = await listJiraProjects();
+        const items = (Array.isArray(res?.items) ? res.items : Array.isArray(res) ? res : []) as Array<Record<string, unknown>>;
+        setProjects(items);
+      } catch (e) {
+        console.error(e);
+        setProjects([]);
+      }
+    })();
+  }, [open]);
 
-  const reset = useCallback(() => {
-    setTitle("");
-    setProjectKey("");
-    setIssueType("Task");
-    setDescription("");
-    setError(null);
-    setStatus("idle");
-  }, []);
-
-  const doSubmit = useCallback(async () => {
-    setError(null);
-    if (!canSubmit) {
-      setError("Title is required.");
-      setStatus("error");
-      return;
-    }
-    setStatus("submitting");
-    try {
-      const body = {
-        title: title.trim(),
-        description: description.trim() || undefined,
-        projectKey: projectKey.trim() || undefined,
-        issueType: issueType.trim() || undefined,
-      };
-      const result = await apiPost<NormalizedJiraIssue, typeof body>("/connectors/jira/issues", body, tenantId);
-      setStatus("success");
-      onCreated?.(result);
-      // auto close after small delay
-      setTimeout(() => {
-        onClose();
-        reset();
-      }, 800);
-    } catch (e: unknown) {
-      setStatus("error");
-      const message =
-        e instanceof Error
-          ? e.message
-          : typeof e === "object" && e && "message" in e
-          ? String((e as Record<string, unknown>).message)
-          : "Failed to create issue.";
-      setError(message);
-    }
-  }, [canSubmit, description, issueType, onClose, onCreated, projectKey, reset, tenantId, title]);
-
-  const handleClose = useCallback(() => {
-    onClose();
-    // reset state when closing
-    setTimeout(reset, 50);
-  }, [onClose, reset]);
+  const canSubmit = Boolean(projectKey && summary);
 
   return (
     <CreateModal
-      title="Create JIRA Issue"
+      title="Create Jira Issue"
       open={open}
-      onClose={handleClose}
-      onSubmit={doSubmit}
-      submitLabel="Create Issue"
+      onClose={onClose}
+      onSubmit={async () => {
+        if (!canSubmit || submitting) return;
+        setSubmitting(true);
+        setError(null);
+        try {
+          const payload = {
+            project_key: projectKey,
+            summary,
+            issuetype,
+            description: description || undefined,
+          };
+          const res = await createJiraIssue(payload);
+          onCreated?.(res as Record<string, unknown>);
+          onClose();
+        } catch (e: unknown) {
+          const msg =
+            e && typeof e === "object" && "message" in (e as Record<string, unknown>)
+              ? String((e as { message?: string }).message)
+              : "Failed to create issue";
+          setError(msg);
+        } finally {
+          setSubmitting(false);
+        }
+      }}
+      submitLabel={submitting ? "Creating…" : "Create"}
+      status={submitting ? "submitting" : "idle"}
       error={error}
-      status={status}
     >
-      <form
-        className="flex flex-col gap-3"
-        onSubmit={(e) => {
-          e.preventDefault();
-          doSubmit();
-        }}
-      >
+      <div className="space-y-3">
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Title *</label>
-          <input
-            type="text"
-            placeholder="Short issue summary"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
-            required
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Project Key</label>
-          <input
-            type="text"
-            placeholder="e.g., ABC"
+          <label className="mb-1 block text-xs text-gray-700">Project Key *</label>
+          <select
+            className="w-full rounded-md border border-gray-200 px-2 py-1 text-sm focus:border-blue-400 focus:outline-none"
             value={projectKey}
             onChange={(e) => setProjectKey(e.target.value)}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
-          />
+            aria-required="true"
+            aria-invalid={!projectKey}
+          >
+            <option value="">Select project</option>
+            {projects.map((p, idx) => {
+              const key = String((p.key as string) ?? (p.id as string) ?? idx);
+              const name = String((p.name as string) ?? key);
+              const val = String((p.key as string) ?? (p.id as string) ?? "");
+              return (
+                <option key={key} value={val}>
+                  {name} ({String(p.key ?? "")})
+                </option>
+              );
+            })}
+          </select>
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Issue Type</label>
+          <label className="mb-1 block text-xs text-gray-700">Summary *</label>
           <input
-            type="text"
-            placeholder="Task, Bug, Story..."
-            value={issueType}
-            onChange={(e) => setIssueType(e.target.value)}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+            value={summary}
+            onChange={(e) => setSummary(e.target.value)}
+            placeholder="Issue summary"
+            aria-required="true"
+            aria-invalid={!summary}
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Description</label>
+          <label className="mb-1 block text-xs text-gray-700">Issue type</label>
+          <select
+            className="w-full rounded-md border border-gray-200 px-2 py-1 text-sm focus:border-blue-400 focus:outline-none"
+            value={issuetype}
+            onChange={(e) => setIssuetype(e.target.value)}
+          >
+            <option>Task</option>
+            <option>Bug</option>
+            <option>Story</option>
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-gray-700">Description (optional)</label>
           <textarea
-            placeholder="Describe the issue..."
+            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+            rows={4}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="min-h-[100px] w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+            placeholder="Describe the issue"
           />
         </div>
-        {!canSubmit && (
-          <p className="text-xs text-red-600">Title is required to create an issue.</p>
-        )}
-      </form>
+        {!canSubmit && <p className="text-xs text-red-600">Project key and summary are required.</p>}
+      </div>
     </CreateModal>
   );
 }

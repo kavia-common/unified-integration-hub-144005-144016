@@ -5,40 +5,36 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { completeOAuthCallback } from '@/utils/api';
 import { useTenant } from '@/utils/TenantContext';
 
+/**
+ * PUBLIC_INTERFACE
+ * OAuthCallbackPage
+ * Completes the OAuth flow by calling backend /connectors/{connector_id}/oauth/callback with code/state.
+ * On success, redirects to /connectors with a success banner.
+ */
 function OAuthCallbackInner() {
   const search = useSearchParams();
   const router = useRouter();
   const { tenantId } = useTenant();
-  const [status, setStatus] = React.useState<'idle' | 'working' | 'ok' | 'error'>('idle');
+  const [status, setStatus] = React.useState<'working' | 'ok' | 'error'>('working');
   const [message, setMessage] = React.useState<string>('Finalizing OAuth...');
-  const [details, setDetails] = React.useState<Record<string, unknown> | null>(null);
 
   React.useEffect(() => {
     const connectorId = search.get('connector_id') || '';
     const code = search.get('code') || '';
     const state = search.get('state');
 
-    if (!connectorId) {
+    if (!connectorId || !code) {
       setStatus('error');
-      setMessage('Missing connector_id');
-      return;
-    }
-    if (!code) {
-      setStatus('error');
-      setMessage('Missing OAuth code');
+      setMessage('Missing connector_id or code');
       return;
     }
 
     let cancelled = false;
-    setStatus('working');
     completeOAuthCallback(connectorId, code, state, tenantId ?? null)
-      .then((res) => {
+      .then(() => {
         if (cancelled) return;
         setStatus('ok');
-        const obj = res && typeof res === 'object' ? (res as Record<string, unknown>) : null;
-        setDetails(obj);
-        setMessage('Connected successfully. Redirecting...');
-        // Redirect back to connectors dashboard after a short delay
+        setMessage('Connected successfully. Redirecting…');
         setTimeout(() => {
           router.replace('/connectors?connected=1&connector=' + encodeURIComponent(connectorId));
         }, 800);
@@ -46,11 +42,11 @@ function OAuthCallbackInner() {
       .catch((err: unknown) => {
         if (cancelled) return;
         setStatus('error');
-        let reason = 'OAuth completion failed';
-        if (err && typeof err === 'object' && 'message' in err) {
-          reason = String((err as { message?: string }).message || reason);
-        }
-        setMessage(reason);
+        const msg =
+          err && typeof err === 'object' && 'message' in (err as Record<string, unknown>)
+            ? String((err as { message?: string }).message)
+            : 'OAuth completion failed';
+        setMessage(msg);
       });
 
     return () => {
@@ -59,43 +55,26 @@ function OAuthCallbackInner() {
   }, [search, router, tenantId]);
 
   return (
-    <div className="min-h-[60vh] flex items-center justify-center">
-      <div className="max-w-md w-full rounded-lg border bg-white p-6 shadow">
-        <h1 className="text-xl font-semibold text-gray-900">OAuth Callback</h1>
-        <p className="mt-2 text-gray-700">{message}</p>
-        {status === 'working' && (
-          <p className="mt-3 text-sm text-gray-500">Please wait while we finalize your connection...</p>
-        )}
-        {status === 'ok' && (
-          <p className="mt-3 text-sm text-green-700">Success! You will be redirected shortly.</p>
-        )}
-        {status === 'error' && (
-          <div className="mt-3 text-sm text-red-700">
-            <p>Something went wrong. You can close this page and try again.</p>
-          </div>
-        )}
-        {details ? (
-          <pre className="mt-4 max-h-48 overflow-auto rounded bg-gray-50 p-3 text-xs text-gray-700">
-            {JSON.stringify(details, null, 2)}
-          </pre>
-        ) : null}
-      </div>
+    <div className="mx-auto max-w-lg p-6">
+      <h1 className="mb-2 text-lg font-semibold">OAuth Callback</h1>
+      {status === 'working' && <p role="status" aria-live="polite">{message}</p>}
+      {status === 'ok' && (
+        <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800" role="status" aria-live="polite">
+          {message}
+        </div>
+      )}
+      {status === 'error' && (
+        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">
+          {message}. Please close this window and try connecting again from the Connectors page.
+        </div>
+      )}
     </div>
   );
 }
 
 export default function OAuthCallbackPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-[60vh] flex items-center justify-center">
-          <div className="max-w-md w-full rounded-lg border bg-white p-6 shadow">
-            <h1 className="text-xl font-semibold text-gray-900">OAuth Callback</h1>
-            <p className="mt-2 text-gray-700">Preparing...</p>
-          </div>
-        </div>
-      }
-    >
+    <Suspense fallback={<div className="mx-auto max-w-lg p-6">Preparing…</div>}>
       <OAuthCallbackInner />
     </Suspense>
   );
