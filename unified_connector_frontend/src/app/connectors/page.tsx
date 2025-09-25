@@ -6,7 +6,12 @@ import ConnectorCard from '@/components/integrations/ConnectorCard';
 import { CONNECTORS } from '@/connectors';
 import { getConnectors } from '@/utils/api';
 
-export default function ConnectorsPage() {
+// PUBLIC_INTERFACE
+function ConnectorsPageInner() {
+  /**
+   * Displays available connectors (Jira, Confluence) and their connection state.
+   * Loads connection status from backend and shows success/error/loading messages.
+   */
   const qs = useSearchParams();
   const [connectedFlags, setConnectedFlags] = React.useState<Record<string, boolean>>({});
   const [loading, setLoading] = React.useState(true);
@@ -78,5 +83,13 @@ export default function ConnectorsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function ConnectorsPage() {
+  return (
+    <React.Suspense fallback={<div className="rounded-md border bg-white p-4">Loading...</div>}>
+      <ConnectorsPageInner />
+    </React.Suspense>
   );
 }

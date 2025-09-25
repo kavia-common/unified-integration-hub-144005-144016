@@ -9,7 +9,9 @@ type Props = {
   label?: string;
 };
 
+// PUBLIC_INTERFACE
 export default function ConnectButton({ connectorId, className, label }: Props) {
+  /** Button that starts OAuth login flow by redirecting to backend login endpoint. */
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 

@@ -12,7 +12,9 @@ type Props = {
   onStatusChange?: (connected: boolean) => void;
 };
 
+// PUBLIC_INTERFACE
 export default function ConnectorCard({ connectorId, title, description, connected, onStatusChange }: Props) {
+  /** Card displaying one connector with Connect/Disconnect actions and state. */
   const [isConnected, setIsConnected] = React.useState<boolean>(!!connected);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);

@@ -1,4 +1,4 @@
-/**
+ /**
  * API utilities for communicating with the backend.
  * This centralizes base URL resolution and tenant-aware headers.
  */
@@ -77,8 +77,8 @@ export async function apiFetch<T = unknown>(path: string, opts: ApiOptions = {})
       ArrayBuffer.isView(opts.body) ||
       opts.body instanceof FormData ||
       opts.body instanceof URLSearchParams ||
-      // @ts-expect-error ReadableStream is available in DOM lib
-      opts.body instanceof ReadableStream
+      // Guard ReadableStream check to avoid TS errors when not in DOM lib
+      (typeof ReadableStream !== 'undefined' && opts.body instanceof ReadableStream)
     ) {
       fetchBody = opts.body as unknown as BodyInit;
     } else {

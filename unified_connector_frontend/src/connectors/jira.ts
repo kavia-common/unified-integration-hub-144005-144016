@@ -3,4 +3,5 @@
  * File kept for future customizations.
  */
 
+// PUBLIC_INTERFACE
 export const JIRA_CONNECTOR_ID = 'jira' as const;
