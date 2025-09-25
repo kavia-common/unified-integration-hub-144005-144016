@@ -3,6 +3,7 @@
 import React from "react";
 import AppShell from "@/components/layout/AppShell";
 import EnvCard, { ConnectorMeta } from "@/components/dashboard/EnvCard";
+import { ChatInput } from "@/components/integrations";
 
 export default function Home() {
   const makeActions = (status: ConnectorMeta["status"]): ConnectorMeta["actions"] => {
@@ -46,6 +47,22 @@ export default function Home() {
       <div className="env-columns">
         <EnvCard title="Current Dev" onRefresh={() => alert("Refreshing Dev")} connectors={devConnectors} />
         <EnvCard title="Current Prod" onRefresh={() => alert("Refreshing Prod")} connectors={prodConnectors} />
+      </div>
+
+      <div className="mt-8">
+        <h2 className="text-base font-semibold text-gray-900 mb-2">Quick Chat</h2>
+        <p className="text-sm text-gray-600 mb-3">
+          Ask questions and attach references using @. Try @ to search and link results from your integrations.
+        </p>
+        <div className="max-w-2xl">
+          <ChatInput
+            connectorId="confluence"
+            placeholder="Ask a question... Use @ to attach pages or issues"
+            onSend={(msg) => {
+              alert(`Message sent:\n${msg.text}\nRefs: ${msg.references.map((r) => r.title).join(", ")}`);
+            }}
+          />
+        </div>
       </div>
 
       <div className="footer-links">

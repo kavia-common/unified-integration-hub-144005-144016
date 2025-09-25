@@ -3,10 +3,12 @@
 import React, { Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { completeOAuthCallback } from '@/utils/api';
+import { useTenant } from '@/utils/TenantContext';
 
 function OAuthCallbackInner() {
   const search = useSearchParams();
   const router = useRouter();
+  const { tenantId } = useTenant();
   const [status, setStatus] = React.useState<'idle' | 'working' | 'ok' | 'error'>('idle');
   const [message, setMessage] = React.useState<string>('Finalizing OAuth...');
   const [details, setDetails] = React.useState<Record<string, unknown> | null>(null);
@@ -29,7 +31,7 @@ function OAuthCallbackInner() {
 
     let cancelled = false;
     setStatus('working');
-    completeOAuthCallback(connectorId, code, state)
+    completeOAuthCallback(connectorId, code, state, tenantId ?? null)
       .then((res) => {
         if (cancelled) return;
         setStatus('ok');
@@ -54,7 +56,7 @@ function OAuthCallbackInner() {
     return () => {
       cancelled = true;
     };
-  }, [search, router]);
+  }, [search, router, tenantId]);
 
   return (
     <div className="min-h-[60vh] flex items-center justify-center">

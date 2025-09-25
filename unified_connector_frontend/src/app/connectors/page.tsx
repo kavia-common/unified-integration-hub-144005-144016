@@ -7,6 +7,13 @@ import { ConnectorApi, ConnectorSummary } from "@/utils/api";
 import ConnectorCard from "@/components/integrations/ConnectorCard";
 import { ConnectorSelectModal } from "@/components/integrations";
 import { useSearchParams, useRouter } from "next/navigation";
+import { useTenant } from "@/utils/TenantContext";
+
+function maskValue(value?: string | null) {
+  if (!value) return "";
+  if (value.length <= 4) return "****";
+  return `${"*".repeat(Math.max(0, value.length - 4))}${value.slice(-4)}`;
+}
 
 function IntegrationsPageInner() {
   const clients = useMemo(() => getAllConnectorClients(), []);
@@ -18,10 +25,11 @@ function IntegrationsPageInner() {
   const search = useSearchParams();
   const router = useRouter();
   const [banner, setBanner] = useState<string | null>(null);
+  const { tenantId } = useTenant();
 
   // Load connectors and statuses
   const loadConnectors = React.useCallback(() => {
-    return ConnectorApi.listConnectors()
+    return ConnectorApi.listConnectors(tenantId ?? null)
       .then((data) => {
         if (data?.connectors?.length) {
           setConnectors(data.connectors);
@@ -38,7 +46,7 @@ function IntegrationsPageInner() {
           );
         }
       })
-      .catch(() => {
+      .catch((e: unknown) => {
         setConnectors(
           clients.map((c) => ({
             id: c.meta.id,
@@ -49,9 +57,16 @@ function IntegrationsPageInner() {
             icon: c.meta.icon,
           }))
         );
-        setError("Backend not reachable. Showing local connector catalog. Set NEXT_PUBLIC_BACKEND_URL in environment.");
+        const msg =
+          e && typeof e === "object" && "message" in (e as Record<string, unknown>)
+            ? String((e as Record<string, unknown>).message)
+            : undefined;
+        setError(
+          msg ??
+            "Backend not reachable. Showing local connector catalog. Set NEXT_PUBLIC_BACKEND_URL in environment."
+        );
       });
-  }, [clients]);
+  }, [clients, tenantId]);
 
   useEffect(() => {
     loadConnectors();
@@ -92,7 +107,7 @@ function IntegrationsPageInner() {
         typeof window !== "undefined"
           ? `${window.location.origin}/oauth/callback?connector_id=${encodeURIComponent(String(connectorId))}`
           : undefined,
-        null
+        tenantId ?? null
       );
       if (auth_url) {
         setModalStatus("success");
@@ -102,9 +117,12 @@ function IntegrationsPageInner() {
       }
       throw new Error("No authorization URL returned.");
     } catch (e) {
-      const err = e as { message?: string };
+      const errMsg =
+        e && typeof e === "object" && "message" in (e as Record<string, unknown>)
+          ? String((e as Record<string, unknown>).message)
+          : undefined;
       setModalStatus("error");
-      setModalError(err?.message ?? "Failed to start OAuth flow");
+      setModalError(errMsg ?? "Failed to start OAuth flow");
     }
   };
 
@@ -115,13 +133,16 @@ function IntegrationsPageInner() {
 
   const onDisconnect = async (connectorId: string) => {
     try {
-      await ConnectorApi.disconnect(connectorId, null);
+      await ConnectorApi.disconnect(connectorId, tenantId ?? null);
       setConnectors((prev) => prev.map((c) => (c.id === connectorId ? { ...c, connected: false } : c)));
       setBanner(`Disconnected ${connectorId}.`);
       setTimeout(() => setBanner(null), 3000);
     } catch (e) {
-      const err = e as { message?: string };
-      alert(err?.message ?? "Failed to disconnect");
+      const msg =
+        e && typeof e === "object" && "message" in (e as Record<string, unknown>)
+          ? String((e as Record<string, unknown>).message)
+          : undefined;
+      alert(msg ?? "Failed to disconnect");
     }
   };
 
@@ -148,21 +169,50 @@ function IntegrationsPageInner() {
           {connectors.map((c) => {
             const client = clients.find((cl) => cl.meta.id === c.id);
             const connected = Boolean(c.connected);
+            type WithMeta = ConnectorSummary & {
+              metadata?: Record<string, unknown>;
+              last_refresh?: string;
+              scopes?: string[];
+            };
+            const cm = c as WithMeta;
+            const meta = cm.metadata;
+            const lastRef = cm.last_refresh;
+            const scopes = Array.isArray(cm.scopes) ? cm.scopes : undefined;
+            const maskedMetaEntries = meta
+              ? Object.entries(meta)
+                  .slice(0, 3)
+                  .map(([k, v]) => `${k}: ${maskValue(typeof v === "string" ? v : JSON.stringify(v))}`)
+              : [];
+
             return (
-              <ConnectorCard
-                key={c.id}
-                connector={{
-                  id: String(c.id),
-                  name: c.name,
-                  description: c.description ?? "",
-                  connected,
-                  category: c.category ?? "Other",
-                  icon: c.icon ?? (client?.meta.icon || "🔗"),
-                  color: client?.meta.color || "#2563EB",
-                }}
-                onConnect={() => onConnect(String(c.id))}
-                onDisconnect={() => onDisconnect(String(c.id))}
-              />
+              <div key={String(c.id)} className="space-y-2">
+                <ConnectorCard
+                  connector={{
+                    id: String(c.id),
+                    name: c.name,
+                    description: c.description ?? "",
+                    connected,
+                    category: c.category ?? "Other",
+                    icon: c.icon ?? (client?.meta.icon || "🔗"),
+                    color: client?.meta.color || "#2563EB",
+                  }}
+                  onConnect={() => onConnect(String(c.id))}
+                  onDisconnect={() => onDisconnect(String(c.id))}
+                />
+                <div className="rounded-lg border bg-white p-3 text-xs text-gray-600">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span>
+                      Status:{" "}
+                      <strong className={connected ? "text-green-700" : "text-gray-700"}>
+                        {connected ? "Connected" : "Not connected"}
+                      </strong>
+                    </span>
+                    {lastRef ? <span>Last refreshed: {lastRef}</span> : null}
+                    {scopes && scopes.length ? <span>Scopes: {scopes.join(", ")}</span> : null}
+                    {maskedMetaEntries.length ? <span>Meta: {maskedMetaEntries.join(" • ")}</span> : null}
+                  </div>
+                </div>
+              </div>
             );
           })}
         </div>

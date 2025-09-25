@@ -9,6 +9,8 @@ type LiveSearchProps = {
   placeholder?: string;
   minChars?: number;
   debounceMs?: number;
+  resourceType?: string;
+  perPage?: number;
 };
 
 type RawSearchItem = {
@@ -58,10 +60,10 @@ function normalizeResults(raw: unknown): NormalizedResult[] {
   // Accept arrays or objects with "results" or "items" arrays; fallback safe mapping.
   const arrLike = Array.isArray(raw)
     ? raw
-    : isRecord(raw) && Array.isArray(raw.results)
-    ? raw.results
-    : isRecord(raw) && Array.isArray(raw.items)
-    ? raw.items
+    : isRecord(raw) && Array.isArray((raw as Record<string, unknown>).results)
+    ? (raw as Record<string, unknown>).results
+    : isRecord(raw) && Array.isArray((raw as Record<string, unknown>).items)
+    ? (raw as Record<string, unknown>).items
     : raw;
 
   const items = toArray<RawSearchItem>(arrLike);
@@ -96,16 +98,26 @@ function normalizeResults(raw: unknown): NormalizedResult[] {
  * It shows loading, error, and normalized results in real time as the user types.
  */
 // PUBLIC_INTERFACE
-export default function LiveSearch({ connectorId, placeholder, minChars = 2, debounceMs = 300 }: LiveSearchProps) {
+export default function LiveSearch({
+  connectorId,
+  placeholder,
+  minChars = 2,
+  debounceMs = 300,
+  resourceType,
+  perPage: perPageProp,
+}: LiveSearchProps) {
   const [q, setQ] = React.useState('');
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [results, setResults] = React.useState<NormalizedResult[]>([]);
+  const [page, setPage] = React.useState(1);
+  const [total, setTotal] = React.useState<number | null>(null);
+  const perPage = perPageProp ?? 10;
   const abortRef = React.useRef<AbortController | null>(null);
   const debTimer = React.useRef<NodeJS.Timeout | null>(null);
 
   const performSearch = React.useCallback(
-    async (query: string) => {
+    async (query: string, pageNum?: number, perPageNum?: number) => {
       if (abortRef.current) {
         abortRef.current.abort();
       }
@@ -115,22 +127,34 @@ export default function LiveSearch({ connectorId, placeholder, minChars = 2, deb
       setError(null);
 
       try {
-        const raw = await searchConnector(connectorId, query);
+        const raw = await searchConnector(connectorId, query, {
+          resource_type: resourceType,
+          page: pageNum ?? page,
+          per_page: perPageNum ?? perPage,
+        });
+        // accept shape { items/results, total, page, per_page } or array
         const list = normalizeResults(raw);
         setResults(list);
+        const asObj = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : null;
+        const maybeTotal =
+          asObj && typeof asObj.total === 'number'
+            ? (asObj.total as number)
+            : Array.isArray(raw)
+            ? (raw as unknown[]).length
+            : null;
+        if (maybeTotal !== null) setTotal(maybeTotal);
       } catch (e: unknown) {
         const hasMessage = (v: unknown): v is { message: unknown } =>
           !!v && typeof v === 'object' && 'message' in (v as Record<string, unknown>);
-        const msg = hasMessage(e) && typeof e.message === 'string'
-          ? e.message
-          : 'Search failed';
+        const msg =
+          hasMessage(e) && typeof e.message === 'string' ? e.message : 'Search failed';
         setError(msg);
         setResults([]);
       } finally {
         setLoading(false);
       }
     },
-    [connectorId]
+    [connectorId, page, perPage, resourceType]
   );
 
   React.useEffect(() => {
@@ -141,15 +165,21 @@ export default function LiveSearch({ connectorId, placeholder, minChars = 2, deb
       setResults([]);
       setError(null);
       setLoading(false);
+      setTotal(null);
+      setPage(1);
       return;
     }
     debTimer.current = setTimeout(() => {
-      void performSearch(q.trim());
+      setPage(1);
+      void performSearch(q.trim(), 1, perPage);
     }, debounceMs);
     return () => {
       if (debTimer.current) clearTimeout(debTimer.current);
     };
-  }, [q, minChars, debounceMs, performSearch]);
+  }, [q, minChars, debounceMs, performSearch, perPage]);
+
+  const canPrev = page > 1;
+  const canNext = total !== null ? page * perPage < total : results.length >= perPage;
 
   return (
     <div className="rounded-lg border bg-white p-4 shadow-sm">
@@ -164,7 +194,8 @@ export default function LiveSearch({ connectorId, placeholder, minChars = 2, deb
           className="btn btn-outline"
           onClick={() => {
             if (q.trim().length >= minChars) {
-              void performSearch(q.trim());
+              setPage(1);
+              void performSearch(q.trim(), 1, perPage);
             }
           }}
         >
@@ -172,6 +203,40 @@ export default function LiveSearch({ connectorId, placeholder, minChars = 2, deb
         </button>
       </div>
       <SearchResults connectorId={connectorId} loading={loading} error={error} results={results} />
+      {(results.length > 0 || total) && (
+        <div className="mt-3 flex items-center justify-between">
+          <div className="text-xs text-gray-500">
+            Page {page}
+            {total !== null ? ` • ${(page - 1) * perPage + 1}-${(page - 1) * perPage + results.length} of ${total}` : ''}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              className="btn btn-outline"
+              disabled={!canPrev || loading}
+              onClick={() => {
+                if (!canPrev) return;
+                const next = page - 1;
+                setPage(next);
+                void performSearch(q.trim(), next, perPage);
+              }}
+            >
+              Previous
+            </button>
+            <button
+              className="btn btn-outline"
+              disabled={!canNext || loading}
+              onClick={() => {
+                if (!canNext) return;
+                const next = page + 1;
+                setPage(next);
+                void performSearch(q.trim(), next, perPage);
+              }}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

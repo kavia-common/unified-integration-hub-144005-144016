@@ -41,6 +41,33 @@ export function buildUrl(path: string, searchParams?: ApiOptions["searchParams"]
   return url.toString();
 }
 
+// PUBLIC_INTERFACE
+export function normalizeApiError(status: number, detail: unknown): string {
+  /** Map backend error codes and shapes to friendly messages. */
+  const code =
+    typeof detail === "object" && detail && "code" in (detail as Record<string, unknown>)
+      ? String((detail as Record<string, unknown>).code)
+      : "";
+  const msg =
+    typeof detail === "object" && detail && "message" in (detail as Record<string, unknown>)
+      ? String((detail as Record<string, unknown>).message)
+      : null;
+
+  if (code === "TOKEN_EXPIRED" || status === 401) {
+    return msg || "Your session with the provider expired. Please reconnect the integration.";
+  }
+  if (code === "RATE_LIMITED" || status === 429) {
+    return msg || "You are being rate limited by the provider. Please try again shortly.";
+  }
+  if (code === "VALIDATION" || status === 400 || status === 422) {
+    return msg || "Your request was invalid. Please check the entered values.";
+  }
+  if (status >= 500) {
+    return msg || "Upstream service error. Please try again later.";
+  }
+  return msg || `API Error ${status}`;
+}
+
 /**
  * PUBLIC_INTERFACE
  * Generic API fetch wrapper.
@@ -78,9 +105,8 @@ export async function apiFetch<T = unknown>(path: string, options: ApiOptions = 
     } catch {
       /* ignore parse error */
     }
-    const error: Error & { status?: number; detail?: unknown } = new Error(
-      `API Error ${res.status} ${res.statusText}`
-    );
+    const friendly = normalizeApiError(res.status, detail);
+    const error: Error & { status?: number; detail?: unknown } = new Error(friendly);
     error.status = res.status;
     error.detail = detail;
     throw error;

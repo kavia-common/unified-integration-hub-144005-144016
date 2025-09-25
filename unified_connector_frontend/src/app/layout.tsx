@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { TenantProvider } from "@/utils/TenantContext";
 
 export const metadata: Metadata = {
   title: "Unified Connector",
@@ -10,7 +11,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="antialiased" suppressHydrationWarning>
-        {children}
+        <TenantProvider>{children}</TenantProvider>
       </body>
     </html>
   );
