@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { connectors } from '@/connectors'
-import { apiGet } from '@/utils/api'
+import { apiGet, saveConnectorOAuthConfig } from '@/utils/api'
 
 type ConnectorInfo = {
   id: string
@@ -50,6 +50,9 @@ export default function Home() {
                 <h2 style={{fontSize:18, fontWeight:600, margin:0}}>Jira</h2>
                 <Link href="https://developer.atlassian.com/cloud/jira/platform" target="_blank" className="small-link">Docs</Link>
               </div>
+
+              <OAuthConfigBlock connector="jira" />
+
               <div className="method-block">
                 <div style={{display:'flex', justifyContent:'space-between', marginBottom:10}}>
                   <span style={{fontSize:14, fontWeight:600}}>OAuth</span>
@@ -60,6 +63,7 @@ export default function Home() {
                   <DisconnectButton connectorId="jira" />
                 </div>
               </div>
+
               <div className="method-block">
                 <div style={{display:'flex', justifyContent:'space-between', marginBottom:10}}>
                   <span style={{fontSize:14, fontWeight:600}}>Quick Actions</span>
@@ -76,6 +80,9 @@ export default function Home() {
                 <h2 style={{fontSize:18, fontWeight:600, margin:0}}>Confluence</h2>
                 <Link href="https://developer.atlassian.com/cloud/confluence" target="_blank" className="small-link">Docs</Link>
               </div>
+
+              <OAuthConfigBlock connector="confluence" />
+
               <div className="method-block">
                 <div style={{display:'flex', justifyContent:'space-between', marginBottom:10}}>
                   <span style={{fontSize:14, fontWeight:600}}>OAuth</span>
@@ -154,6 +161,64 @@ function CreateJiraIssueButton() {
         alert(`Created issue ${data.id}`)
       } finally { setBusy(false) }
     }}>Create Issue</button>
+  )
+}
+
+function Field({ label, type = 'text', value, onChange, placeholder }: { label: string; type?: string; value: string; onChange: (v: string)=>void; placeholder?: string }) {
+  return (
+    <label style={{display:'grid', gap:6, fontSize:12, color:'var(--text-tertiary)'}}>
+      <span style={{fontWeight:600}}>{label}</span>
+      <input
+        type={type}
+        value={value}
+        onChange={(e)=>onChange(e.target.value)}
+        placeholder={placeholder}
+        style={{height:36, border:'1px solid var(--border-subtle)', borderRadius:8, padding:'0 10px', fontSize:14}}
+      />
+    </label>
+  )
+}
+
+function OAuthConfigBlock({ connector }: { connector: 'jira' | 'confluence' }) {
+  const [open, setOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [clientId, setClientId] = useState('')
+  const [clientSecret, setClientSecret] = useState('')
+  const [redirectUri, setRedirectUri] = useState('')
+
+  return (
+    <div className="method-block" aria-labelledby={`${connector}-cfg`}>
+      <div style={{display:'flex', justifyContent:'space-between', marginBottom:10}}>
+        <span id={`${connector}-cfg`} style={{fontSize:14, fontWeight:600}}>OAuth Client Configuration</span>
+        <button
+          className="btn btn-secondary"
+          onClick={()=>setOpen(o=>!o)}
+          aria-expanded={open}
+          aria-controls={`${connector}-cfg-form`}
+        >
+          {open ? 'Hide' : 'Configure'}
+        </button>
+      </div>
+      {open && (
+        <form id={`${connector}-cfg-form`} onSubmit={async (e)=>{e.preventDefault(); setSaving(true); try {
+          if (!clientId || !clientSecret || !redirectUri) { alert('All fields are required'); return; }
+          await saveConnectorOAuthConfig(connector, { client_id: clientId.trim(), client_secret: clientSecret.trim(), redirect_uri: redirectUri.trim() })
+          alert('Saved configuration')
+          setClientSecret('') // do not keep secrets in memory
+        } catch (err:any) {
+          alert(err?.message || 'Failed to save')
+        } finally { setSaving(false) }}}>
+          <div style={{display:'grid', gap:10}}>
+            <Field label="Client ID" value={clientId} onChange={setClientId} placeholder="Atlassian OAuth Client ID" />
+            <Field label="Client Secret" type="password" value={clientSecret} onChange={setClientSecret} placeholder="••••••••" />
+            <Field label="Redirect URI" value={redirectUri} onChange={setRedirectUri} placeholder="https://yourapp.com/api/connectors/{connector}/oauth/callback" />
+          </div>
+          <div className="actions" style={{marginTop:10}}>
+            <button className="btn btn-warning" type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save OAuth App'}</button>
+          </div>
+        </form>
+      )}
+    </div>
   )
 }
 
