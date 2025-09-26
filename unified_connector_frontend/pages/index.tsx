@@ -120,6 +120,25 @@ export default function HomePage() {
     }
   }
 
+  React.useEffect(() => {
+    // Dev-time check: verify that only one global style tag exists and content matches.
+    const id = "uc-global-styles";
+    const nodes = typeof document !== "undefined" ? document.querySelectorAll(`style#${CSS.escape(id)}`) : null;
+    if (nodes && nodes.length !== 1) {
+      // eslint-disable-next-line no-console
+      console.warn(`[HomePage] Expected 1 global style #${id}, found ${nodes.length}.`);
+    } else if (nodes && nodes[0]) {
+      const normalize = (s: string) => s.replace(/\r\n/g, "\n");
+      const serverCss = normalize(nodes[0].textContent || "");
+      const clientCss = normalize(globalCss);
+      if (serverCss !== clientCss) {
+        // eslint-disable-next-line no-console
+        console.warn("[HomePage] Server/client CSS for global style differ; normalizing to client CSS.");
+        nodes[0].textContent = clientCss;
+      }
+    }
+  }, []);
+
   return (
     <div style={styles.appShell}>
       <GlobalStyle id="uc-global-styles" css={globalCss} />
@@ -336,7 +355,40 @@ export default function HomePage() {
  * is not HTML-escaped between server and client. Use an id to avoid duplicate style tags.
  */
 function GlobalStyle({ css, id }: { css: string; id?: string }) {
-  return <style id={id} dangerouslySetInnerHTML={{ __html: css }} />;
+  /**
+   * Ensure that exactly one style tag with the provided id exists on the client.
+   * This guards against React 18 StrictMode double-invocation during development
+   * that can momentarily render components twice.
+   */
+  React.useEffect(() => {
+    if (!id || typeof document === "undefined") return;
+    const all = Array.from(document.querySelectorAll<HTMLStyleElement>(`style#${CSS.escape(id)}`));
+    if (all.length > 1) {
+      // Keep the first, remove the rest to avoid double style blocks.
+      for (let i = 1; i < all.length; i += 1) {
+        all[i].parentElement?.removeChild(all[i]);
+      }
+    }
+    // Verify server/client textContent match (dev aid)
+    const el = document.getElementById(id) as HTMLStyleElement | null;
+    if (el && typeof el.textContent === "string") {
+      // Normalize endings to avoid platform newline differences
+      const normalize = (s: string) => s.replace(/\r\n/g, "\n");
+      const serverCss = normalize(el.textContent);
+      const clientCss = normalize(css);
+      if (serverCss !== clientCss) {
+        // In dev, warn if a mismatch is detected.
+        // This should not happen since we inject the same string on both sides.
+        // eslint-disable-next-line no-console
+        console.warn(`[GlobalStyle] CSS content mismatch for #${id}.`);
+        // Align to client version to avoid hydration warning loops.
+        el.textContent = clientCss;
+      }
+    }
+  }, [css, id]);
+
+  // Render a single <style> tag with raw CSS only, no quotes/arrays, once.
+  return <style id={id} dangerouslySetInnerHTML={{ __html: css }} suppressHydrationWarning />;
 }
 
 async function safeJson(res: Response) {
