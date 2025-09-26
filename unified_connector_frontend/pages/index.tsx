@@ -122,7 +122,7 @@ export default function HomePage() {
 
   return (
     <div style={styles.appShell}>
-      <style>{globalCss}</style>
+      <GlobalStyle id="uc-global-styles" css={globalCss} />
 
       <aside style={styles.sidebar} role="navigation" aria-label="Primary">
         <div style={styles.brand}>
@@ -330,6 +330,15 @@ export default function HomePage() {
 /**
  * Utilities and components
  */
+/**
+ * PUBLIC_INTERFACE
+ * GlobalStyle: Injects raw CSS into a <style> tag using dangerouslySetInnerHTML to ensure the CSS
+ * is not HTML-escaped between server and client. Use an id to avoid duplicate style tags.
+ */
+function GlobalStyle({ css, id }: { css: string; id?: string }) {
+  return <style id={id} dangerouslySetInnerHTML={{ __html: css }} />;
+}
+
 async function safeJson(res: Response) {
   try {
     return await res.json();
