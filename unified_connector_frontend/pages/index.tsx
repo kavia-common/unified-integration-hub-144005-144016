@@ -18,7 +18,15 @@ const theme = {
   focus: "#2563EB",
 };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+/**
+ * PUBLIC_INTERFACE
+ * API_URL: Frontend base URL for the backend API.
+ * - Reads from NEXT_PUBLIC_API_URL at runtime.
+ * - Falls back to http://localhost:3002 to match the backend default port.
+ *   If you're running in a container where localhost is not accessible from the browser,
+ *   set NEXT_PUBLIC_API_URL to http://0.0.0.0:3002 (or your host URL) in .env.local.
+ */
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
 
 /**
  * Helpers
